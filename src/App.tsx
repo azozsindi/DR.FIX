@@ -24,7 +24,8 @@ import {
   Instagram,
   MessageCircle,
   Star,
-  HelpCircle
+  HelpCircle,
+  Tag
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useDropzone } from 'react-dropzone';
@@ -49,17 +50,19 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-brand-black/80 backdrop-blur-lg border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 md:w-10 md:h-10 bg-brand-red rounded-lg flex items-center justify-center red-glow">
-            <Wrench className="text-white w-5 h-5 md:w-6 md:h-6" />
+          <div className="relative flex items-center justify-center">
+            <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-lg">
+              <span className="text-brand-red font-display font-black text-lg italic tracking-tighter leading-none">
+                Dr.Fix
+              </span>
+            </div>
           </div>
-          <span className="text-xl md:text-2xl font-display font-black tracking-tighter italic">
-            DR.<span className="text-brand-red">FIX</span>
-          </span>
         </div>
         
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest">
           <a href="#services" className="hover:text-brand-red transition-colors">الخدمات</a>
+          <a href="#offers" className="hover:text-brand-red transition-colors">العروض</a>
           <a href="#process" className="hover:text-brand-red transition-colors">كيف نعمل</a>
           <a href="#booking" className="hover:text-brand-red transition-colors">احجز موعداً</a>
           <a href="#contact" className="px-4 py-2 bg-brand-red rounded-full text-white font-display font-bold red-glow-hover transition-all">اتصل بنا</a>
@@ -85,6 +88,7 @@ const Navbar = () => {
           >
             <div className="flex flex-col p-6 gap-6 text-lg font-bold">
               <a href="#services" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">الخدمات</a>
+              <a href="#offers" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">العروض</a>
               <a href="#process" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">كيف نعمل</a>
               <a href="#booking" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">احجز موعداً</a>
               <a href="#contact" onClick={() => setIsOpen(false)} className="bg-brand-red px-6 py-3 rounded-xl text-center font-display">اتصل بنا</a>
@@ -342,6 +346,86 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
             />
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+);
+
+const Offers = () => (
+  <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
+    <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
+      <div className="text-center mb-16">
+        <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">عروض <span className="text-brand-red">خاصة</span></h2>
+        <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        <motion.div 
+          whileHover={{ y: -10 }}
+          className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
+        >
+          <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
+          <div className="flex justify-between items-start mb-6">
+            <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
+              <Tag className="w-6 h-6 text-brand-red" />
+            </div>
+            <div className="text-left">
+              <span className="text-4xl font-display font-black text-brand-red">99</span>
+              <span className="text-sm font-bold text-gray-400 mr-1">ريال</span>
+            </div>
+          </div>
+          <h3 className="text-2xl font-display font-black mb-4 italic">كشف شامل على السيارة</h3>
+          <p className="text-gray-400 mb-8 leading-relaxed">
+            فحص دقيق لكافة أنظمة السيارة الميكانيكية والكهربائية للتأكد من سلامتها وأدائها المثالي.
+          </p>
+          <a href="#booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
+            احجز هذا العرض الآن
+            <ChevronDown className="w-4 h-4 -rotate-90" />
+          </a>
+        </motion.div>
+
+        <motion.div 
+          whileHover={{ y: -10 }}
+          className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
+        >
+          <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
+          <div className="flex justify-between items-start mb-6">
+            <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
+              <Zap className="w-6 h-6 text-brand-red" />
+            </div>
+            <div className="text-left">
+              <span className="text-4xl font-display font-black text-brand-red">299</span>
+              <span className="text-sm font-bold text-gray-400 mr-1">ريال</span>
+            </div>
+          </div>
+          <h3 className="text-2xl font-display font-black mb-4 italic">باقة الصيانة المتكاملة</h3>
+          <ul className="space-y-3 text-gray-400 mb-8">
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-brand-red" />
+              تغيير بواجي
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-brand-red" />
+              تنظيف بخاخات
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-brand-red" />
+              تنظيف بوابة (Throttle)
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-brand-red" />
+              تغيير طرمبة بنزين
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-brand-red" />
+              تشييك شامل على المكيف
+            </li>
+          </ul>
+          <a href="#booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
+            احجز هذا العرض الآن
+            <ChevronDown className="w-4 h-4 -rotate-90" />
+          </a>
+        </motion.div>
       </div>
     </div>
   </section>
@@ -689,15 +773,14 @@ const Footer = () => (
     <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-12">
       <div className="col-span-2">
         <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 bg-brand-red rounded flex items-center justify-center">
-            <Wrench className="text-white w-5 h-5" />
+          <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-xl">
+            <span className="text-brand-red font-display font-black text-xl italic tracking-tighter leading-none">
+              Dr.Fix
+            </span>
           </div>
-          <span className="text-xl font-display font-black italic tracking-tighter">
-            DR.<span className="text-brand-red">FIX</span>
-          </span>
         </div>
         <p className="text-gray-500 max-w-sm leading-relaxed">
-          مركز الصيانة الأفضل في المنطقة. خبرة تمتد لسنوات في التعامل مع كافة أنواع السيارات والمشاكل التقنية والميكانيكية.
+          مركز الصيانة الأفضل في المنطقة. خبرة تمتد لسنوات في التعامل مع كافة أنواع السيارات والمشاكل التقنية والميكانيكية تحت إشراف المهندس محمد سندي.
         </p>
       </div>
       
@@ -864,6 +947,7 @@ export default function App() {
       <FloatingSocials />
       <Hero />
       <Services onServiceSelect={handleServiceSelect} />
+      <Offers />
       <Process />
       <Testimonials />
       <BookingForm selectedService={selectedService} />
