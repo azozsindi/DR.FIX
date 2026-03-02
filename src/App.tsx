@@ -405,8 +405,9 @@ const Offers = () => (
               <Zap className="w-6 h-6 text-brand-red" />
             </div>
             <div className="text-left">
-              <span className="text-4xl font-display font-black text-brand-red">299</span>
+              <span className="text-4xl font-display font-black text-brand-red">298</span>
               <span className="text-sm font-bold text-gray-400 mr-1">ريال</span>
+              <div className="text-[10px] text-brand-red font-bold uppercase mt-1 text-left">للسيارات 4 سلندر</div>
             </div>
           </div>
           <h3 className="text-2xl font-display font-black mb-4 italic">باقة الصيانة المتكاملة</h3>
