@@ -370,14 +370,25 @@ const Offers = () => (
               <Tag className="w-6 h-6 text-brand-red" />
             </div>
             <div className="text-left">
-              <span className="text-4xl font-display font-black text-brand-red">99</span>
-              <span className="text-sm font-bold text-gray-400 mr-1">ريال</span>
+              <span className="text-4xl font-display font-black text-brand-red">مجاني</span>
+              <div className="text-[10px] text-brand-red font-bold uppercase mt-1">99 ريال في حال عدم الإصلاح</div>
             </div>
           </div>
           <h3 className="text-2xl font-display font-black mb-4 italic">كشف شامل على السيارة</h3>
-          <p className="text-gray-400 mb-8 leading-relaxed">
-            فحص دقيق لكافة أنظمة السيارة الميكانيكية والكهربائية للتأكد من سلامتها وأدائها المثالي.
-          </p>
+          <ul className="space-y-3 text-gray-400 mb-8">
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-brand-red" />
+              للسيارات 4 سلندر فقط
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-brand-red" />
+              لا يشمل فحص الكهرباء
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-brand-red" />
+              الكشف مجاني عند الإصلاح لدينا
+            </li>
+          </ul>
           <a href="#booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
             احجز هذا العرض الآن
             <ChevronDown className="w-4 h-4 -rotate-90" />
@@ -694,22 +705,51 @@ const Testimonials = () => (
         <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-8">
-        <TestimonialCard 
-          name="أحمد الزهراني" 
-          comment="خدمة ممتازة جداً، استلموا السيارة من البيت ورجعوها في نفس اليوم نظيفة ومصلحة. المهندس محمد قمة في الأخلاق والأمانة." 
-          rating={5} 
-        />
-        <TestimonialCard 
-          name="خالد الحربي" 
-          comment="أفضل مركز صيانة تعاملت معه في جدة. دقة في المواعيد وشغل احترافي وسعر منافس جداً مقارنة بالوكالة." 
-          rating={5} 
-        />
-        <TestimonialCard 
-          name="سارة الغامدي" 
-          comment="وفروا علي عناء الذهاب للورشة، الخدمة من الباب للباب مريحة جداً. شكراً دكتور فيكس على الاحترافية." 
-          rating={5} 
-        />
+      <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
+        <div className="flex gap-6 md:gap-8">
+          <div className="min-w-[280px] md:min-w-[350px] snap-center">
+            <TestimonialCard 
+              name="أحمد" 
+              comment="خدمة ممتازة جداً، استلموا السيارة من البيت ورجعوها في نفس اليوم نظيفة ومصلحة. المهندس محمد قمة في الأخلاق والأمانة." 
+              rating={5} 
+            />
+          </div>
+          <div className="min-w-[280px] md:min-w-[350px] snap-center">
+            <TestimonialCard 
+              name="فارس" 
+              comment="عجبني إنه يغسل السيارة قبل لا يجيبها ههههههههههههههههه، صراحة خدمة فندقية مو بس صيانة! الله يبارك لكم." 
+              rating={5} 
+            />
+          </div>
+          <div className="min-w-[280px] md:min-w-[350px] snap-center">
+            <TestimonialCard 
+              name="خالد" 
+              comment="أفضل مركز صيانة تعاملت معه في جدة. دقة في المواعيد وشغل احترافي وسعر منافس جداً مقارنة بالوكالة." 
+              rating={5} 
+            />
+          </div>
+          <div className="min-w-[280px] md:min-w-[350px] snap-center">
+            <TestimonialCard 
+              name="مرام" 
+              comment="وفروا علي عناء الذهاب للورشة، الخدمة من الباب للباب مريحة جداً. شكراً دكتور فيكس على الاحترافية." 
+              rating={5} 
+            />
+          </div>
+          <div className="min-w-[280px] md:min-w-[350px] snap-center">
+            <TestimonialCard 
+              name="سلطان" 
+              comment="المهندس محمد سندي فنان، صلح لي مشكلة في الكهرباء عجزت عنها الوكالة وبسعر معقول جداً." 
+              rating={5} 
+            />
+          </div>
+          <div className="min-w-[280px] md:min-w-[350px] snap-center">
+            <TestimonialCard 
+              name="خلود" 
+              comment="أفضل شيء إنهم يجونك لين البيت، ما عاد أشيل هم الورش والزحمة. تعامل راقي جداً." 
+              rating={5} 
+            />
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -897,39 +937,6 @@ const Process = () => (
   </section>
 );
 
-const FloatingSocials = () => (
-  <div className="fixed right-4 bottom-20 md:bottom-6 md:left-6 z-50 flex flex-col gap-3 md:gap-4">
-    <motion.a 
-      initial={{ x: 100, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ delay: 0.8 }}
-      whileHover={{ scale: 1.1 }}
-      href="https://www.snapchat.com/add/drfix.6556" 
-      target="_blank" 
-      rel="noopener noreferrer"
-      className="w-10 h-10 md:w-12 md:h-12 bg-[#FFFC00] text-black rounded-full flex items-center justify-center shadow-lg hover:shadow-[#FFFC00]/20 transition-all"
-      title="Snapchat"
-    >
-      <svg viewBox="0 0 24 24" className="w-5 h-5 md:w-6 md:h-6 fill-current" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2.75c-3.15 0-5.75 2.35-5.75 5.25 0 .35.03.7.1 1.03-.05.02-.1.04-.15.07-.45.25-.7.75-.7 1.3 0 .4.15.75.4 1 .05.05.1.1.15.15-.05.15-.1.3-.1.45 0 .85.7 1.55 1.55 1.55.15 0 .3-.02.45-.07.05.1.1.2.15.3.4.8 1.2 1.3 2.1 1.3.1 0 .2 0 .3-.02.1.35.4.62.8.62s.7-.27.8-.62c.1.02.2.02.3.02.9 0 1.7-.5 2.1-1.3.05-.1.1-.2.15-.3.15.05.3.07.45.07.85 0 1.55-.7 1.55-1.55 0-.15-.05-.3-.1-.45.05-.05.1-.1.15-.15.25-.25.4-.6.4-1 0-.55-.25-1.05-.7-1.3-.05-.03-.1-.05-.15-.07.07-.33.1-.68.1-1.03 0-2.9-2.6-5.25-5.75-5.25zM12 19c-3.5 0-6.5-1.5-8.5-4 0-1.5 1.5-2.5 3-2.5.5 0 1 .1 1.5.3.5-.8 1.5-1.3 2.5-1.3.1 0 .2 0 .3.02.1-.35.4-.62.8-.62s.7.27.8.62c.1-.02.2-.02.3-.02 1 0 2 .5 2.5 1.3.5-.2 1-.3 1.5-.3 1.5 0 3 1 3 2.5-2 2.5-5 4-8.5 4z"/>
-      </svg>
-    </motion.a>
-    <motion.a 
-      initial={{ x: 100, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ delay: 1.0 }}
-      whileHover={{ scale: 1.1 }}
-      href="https://www.instagram.com/dr.fix1" 
-      target="_blank" 
-      rel="noopener noreferrer"
-      className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-pink-500/20 transition-all"
-      title="Instagram"
-    >
-      <Instagram className="w-5 h-5 md:w-6 md:h-6" />
-    </motion.a>
-  </div>
-);
-
 export default function App() {
   const [selectedService, setSelectedService] = useState<string>('');
 
@@ -944,7 +951,6 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Navbar />
-      <FloatingSocials />
       <Hero />
       <Services onServiceSelect={handleServiceSelect} />
       <Offers />
