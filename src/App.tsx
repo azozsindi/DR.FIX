@@ -5,6 +5,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { 
   Wrench, 
   Zap, 
@@ -26,11 +27,37 @@ import {
   Tag,
   Camera,
   Send,
-  Loader2
+  Loader2,
+  History,
+  Search,
+  FileText,
+  Calendar,
+  Settings,
+  LogOut,
+  LogIn,
+  Trash2,
+  PlusCircle,
+  User,
+  MessageSquare,
+  AlertCircle,
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { cn } from './lib/utils';
-import { db } from './firebase';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  LineChart, 
+  Line, 
+  PieChart, 
+  Pie, 
+  Cell 
+} from 'recharts';
+import * as d3 from 'd3';
 import { 
   collection, 
   addDoc, 
@@ -38,8 +65,77 @@ import {
   query, 
   orderBy, 
   serverTimestamp,
-  Timestamp 
+  Timestamp,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  increment,
+  where,
+  getDocs,
+  deleteDoc,
+  limit 
 } from 'firebase/firestore';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signOut,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { auth, db } from './firebase';
+
+// --- Error Handling ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // We don't throw here to avoid crashing the app, but we log it as required.
+};
 
 // --- Types ---
 interface TestimonialData {
@@ -47,6 +143,7 @@ interface TestimonialData {
   name: string;
   comment: string;
   rating: number;
+  reply?: string;
   createdAt: Timestamp | any;
 }
 interface BookingFormData {
@@ -58,31 +155,134 @@ interface BookingFormData {
   phone: string;
 }
 
+// --- Global Auth Guard ---
+const ADMIN_CREDENTIALS = {
+  username: 'DRFIX',
+  password: 'ADMIN2468'
+};
+
 // --- Components ---
 
-const Navbar = () => {
+const LoginPage = ({ onLogin }: { onLogin: () => void }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+      onLogin();
+      setError('');
+      navigate('/admin');
+    } else {
+      setError('اسم المستخدم أو كلمة المرور غير صحيحة');
+    }
+  };
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="glass-card p-8 w-full max-w-md border-brand-red/20 shadow-2xl"
+      >
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-display font-black italic uppercase">دخول <span className="text-brand-red">المسؤول</span></h2>
+          <p className="text-gray-400 text-sm mt-2">يرجى إدخال بيانات الاعتماد للوصول للوحة التحكم</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">اسم المستخدم</label>
+            <input 
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-brand-red transition-all"
+              placeholder="Username"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">كلمة المرور</label>
+            <input 
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-brand-red transition-all"
+              placeholder="Password"
+              required
+            />
+          </div>
+
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 bg-brand-red/10 border border-brand-red/20 rounded-lg text-brand-red text-sm text-center"
+            >
+              {error}
+            </motion.div>
+          )}
+
+          <button 
+            type="submit"
+            className="w-full py-4 bg-brand-red rounded-xl font-display font-black italic uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-brand-red/20"
+          >
+            تسجيل الدخول
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
+interface AppSettings {
+  logoUrl?: string;
+  siteName?: string;
+}
+
+const Navbar = ({ settings }: { settings: AppSettings }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
+
+  const navLinks = [
+    { name: 'الرئيسية', path: '/' },
+    { name: 'الخدمات', path: '/services' },
+    { name: 'العروض', path: '/offers' },
+    { name: 'سجل الصيانة', path: '/history' },
+  ];
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-brand-black/80 backdrop-blur-lg border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2">
           <div className="relative flex items-center justify-center">
-            <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-lg">
-              <span className="text-brand-red font-display font-black text-lg italic tracking-tighter leading-none">
-                Dr.Fix
-              </span>
+            <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-lg overflow-hidden">
+              {settings.logoUrl ? (
+                <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <span className="text-brand-red font-display font-black text-lg italic tracking-tighter leading-none">
+                  Dr.Fix
+                </span>
+              )}
             </div>
           </div>
-        </div>
+        </Link>
         
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest">
-          <a href="#services" className="hover:text-brand-red transition-colors">الخدمات</a>
-          <a href="#offers" className="hover:text-brand-red transition-colors">العروض</a>
-          <a href="#process" className="hover:text-brand-red transition-colors">كيف نعمل</a>
-          <a href="#booking" className="hover:text-brand-red transition-colors">احجز موعداً</a>
-          <a href="#contact" className="px-4 py-2 bg-brand-red rounded-full text-white font-display font-bold red-glow-hover transition-all">اتصل بنا</a>
+          {navLinks.map((link) => (
+            <Link 
+              key={link.path} 
+              to={link.path} 
+              className={cn("transition-colors hover:text-brand-red", location.pathname === link.path ? "text-brand-red" : "text-white")}
+            >
+              {link.name}
+            </Link>
+          ))}
+          <Link to="/booking" className="px-4 py-2 bg-brand-red rounded-full text-white font-display font-bold red-glow-hover transition-all">احجز موعداً</Link>
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -104,11 +304,24 @@ const Navbar = () => {
             className="md:hidden bg-brand-dark border-b border-white/5 overflow-hidden"
           >
             <div className="flex flex-col p-6 gap-6 text-lg font-bold">
-              <a href="#services" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">الخدمات</a>
-              <a href="#offers" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">العروض</a>
-              <a href="#process" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">كيف نعمل</a>
-              <a href="#booking" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">احجز موعداً</a>
-              <a href="#contact" onClick={() => setIsOpen(false)} className="bg-brand-red px-6 py-3 rounded-xl text-center font-display">اتصل بنا</a>
+              {navLinks.map((link) => (
+                <Link 
+                  key={link.path} 
+                  to={link.path} 
+                  onClick={() => setIsOpen(false)}
+                  className={cn("transition-colors hover:text-brand-red", location.pathname === link.path ? "text-brand-red" : "text-white")}
+                >
+                  {link.name}
+                </Link>
+              ))}
+              <Link to="/booking" onClick={() => setIsOpen(false)} className="bg-brand-red px-6 py-3 rounded-xl text-center font-display">احجز موعداً</Link>
+              <Link 
+                to="/admin"
+                onClick={() => setIsOpen(false)}
+                className="text-[10px] text-gray-700 uppercase tracking-widest mt-4 self-center"
+              >
+                Admin Access
+              </Link>
             </div>
           </motion.div>
         )}
@@ -168,10 +381,10 @@ const Hero = () => (
           مركز Dr. Fix في جدة: نستلم سيارتك من بيتك، نسوي الصيانة، نغسلها، ونسلمها لباب بيتك. خدمة احترافية على مدار 24 ساعة.
         </p>
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 justify-center lg:justify-start">
-          <a href="#booking" className="px-8 py-4 bg-brand-red text-white font-display font-black rounded-xl red-glow-hover transition-all flex items-center justify-center gap-3 text-lg">
+          <Link to="/booking" className="px-8 py-4 bg-brand-red text-white font-display font-black rounded-xl red-glow-hover transition-all flex items-center justify-center gap-3 text-lg">
             احجز موعدك الآن
             <Car className="w-6 h-6" />
-          </a>
+          </Link>
           <div className="flex gap-2">
             <a href="tel:0546870807" className="flex-1 px-6 py-4 border border-white/10 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-white/5 transition-all cursor-pointer" title="اتصال هاتفي">
               اتصل بنا
@@ -256,209 +469,224 @@ const ServiceCard = ({ icon: Icon, title, description, onClick }: { icon: any, t
   </motion.div>
 );
 
-const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void }) => (
-  <section id="services" className="py-16 md:py-24 bg-brand-dark">
-    <div className="max-w-7xl mx-auto px-4 md:px-6">
-      <div className="text-center mb-12 md:mb-16">
-        <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">خدماتنا <span className="text-brand-red">الشاملة</span></h2>
-        <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
-      </div>
+const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void }) => {
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-      <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
-        <div className="flex gap-6 md:gap-8">
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Car} 
-              title="خدمة من الباب للباب" 
-              description="نستلم سيارتك من بيتك، نسوي الصيانة اللازمة، نغسلها، ونسلمها لك جاهزة."
-              onClick={() => onServiceSelect('home-service')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Wrench} 
-              title="ميكانيكا عامة" 
-              description="إصلاح المحركات، الجيربوكس، وأنظمة التعليق بأعلى معايير الجودة."
-              onClick={() => onServiceSelect('mechanic')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Zap} 
-              title="كهرباء السيارات" 
-              description="فحص وإصلاح الأنظمة الكهربائية، البطاريات، والدينامو بدقة متناهية."
-              onClick={() => onServiceSelect('electric')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Cpu} 
-              title="برمجة وفحص كمبيوتر" 
-              description="أحدث أجهزة الفحص لتشخيص الأعطال وبرمجة الحساسات والأنظمة الذكية."
-              onClick={() => onServiceSelect('programming')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Hammer} 
-              title="سمكرة وطلاء" 
-              description="إصلاح الحوادث وإعادة طلاء السيارة بألوان مطابقة تماماً للوكالة."
-              onClick={() => onServiceSelect('bodywork')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Shield} 
-              title="صيانة دورية" 
-              description="تغيير الزيوت، الفلاتر، وفحص السوائل لضمان أداء مثالي لسيارتك."
-              onClick={() => onServiceSelect('maintenance')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Zap} 
-              title="تكييف السيارات" 
-              description="فحص تسريب الفريون، تعبئة الفريون، وإصلاح الكمبروسر."
-              onClick={() => onServiceSelect('ac')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Wrench} 
-              title="فرامل ومساعدات" 
-              description="تغيير الفحمات، خرط الهوبات، وإصلاح نظام التعليق والمساعدات."
-              onClick={() => onServiceSelect('brakes')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Shield} 
-              title="فحص قبل الشراء" 
-              description="فحص شامل ودقيق للسيارة قبل شرائها لضمان سلامة قرارك."
-              onClick={() => onServiceSelect('inspection')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Car} 
-              title="إطارات وميزان" 
-              description="تغيير الإطارات، ترصيص، وميزان ليزر لضمان ثبات السيارة."
-              onClick={() => onServiceSelect('tires')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Zap} 
-              title="البطاريات والتشغيل" 
-              description="فحص نظام التشغيل، تغيير البطاريات، وإصلاح السلف والدينامو."
-              onClick={() => onServiceSelect('battery')}
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <ServiceCard 
-              icon={Hammer} 
-              title="تلميع ونانو سيراميك" 
-              description="تلميع خارجي وداخلي وحماية نانو سيراميك للحفاظ على لمعة سيارتك."
-              onClick={() => onServiceSelect('detailing')}
-            />
+  useEffect(() => {
+    const q = query(collection(db, 'services'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const results: ServiceItem[] = [];
+      snapshot.forEach((doc) => {
+        results.push({ id: doc.id, ...doc.data() } as ServiceItem);
+      });
+      setServices(results);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'services');
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const getIcon = (iconName: string) => {
+    const icons: Record<string, any> = {
+      Car, Wrench, Zap, Cpu, Hammer, Shield, Star, Tool: Wrench
+    };
+    return icons[iconName] || Wrench;
+  };
+
+  if (loading) return null;
+
+  return (
+    <section id="services" className="py-16 md:py-24 bg-brand-dark">
+      <div className="max-w-7xl mx-auto px-4 md:px-6">
+        <div className="text-center mb-12 md:mb-16">
+          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">خدماتنا <span className="text-brand-red">الشاملة</span></h2>
+          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+        </div>
+
+        <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
+          <div className="flex gap-6 md:gap-8">
+            {services.length > 0 ? (
+              services.map((service) => (
+                <div key={service.id} className="min-w-[280px] md:min-w-[350px] snap-center">
+                  <ServiceCard 
+                    icon={getIcon(service.icon)} 
+                    title={service.title} 
+                    description={service.description}
+                    onClick={() => onServiceSelect(service.title)}
+                  />
+                </div>
+              ))
+            ) : (
+              // Fallback to static if no services in DB
+              <>
+                <div className="min-w-[280px] md:min-w-[350px] snap-center">
+                  <ServiceCard 
+                    icon={Car} 
+                    title="خدمة من الباب للباب" 
+                    description="نستلم سيارتك من بيتك، نسوي الصيانة اللازمة، نغسلها، ونسلمها لك جاهزة."
+                    onClick={() => onServiceSelect('home-service')}
+                  />
+                </div>
+                <div className="min-w-[280px] md:min-w-[350px] snap-center">
+                  <ServiceCard 
+                    icon={Wrench} 
+                    title="ميكانيكا عامة" 
+                    description="إصلاح المحركات، الجيربوكس، وأنظمة التعليق بأعلى معايير الجودة."
+                    onClick={() => onServiceSelect('mechanic')}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
-const Offers = () => (
-  <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
-    <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
-      <div className="text-center mb-16">
-        <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">عروض <span className="text-brand-red">خاصة</span></h2>
-        <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+interface Offer {
+  id: string;
+  title: string;
+  price: string;
+  subtitle?: string;
+  features: string[];
+  icon: 'tag' | 'zap';
+  createdAt: Timestamp;
+}
+
+const Offers = () => {
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, 'offers'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const results: Offer[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data() as Offer;
+        if (data.active !== false) { // Default to active if not specified
+          results.push({ id: doc.id, ...data } as Offer);
+        }
+      });
+      setOffers(results);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'offers');
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (loading) return null;
+  if (offers.length === 0) return null;
+
+  return (
+    <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">عروض <span className="text-brand-red">خاصة</span></h2>
+          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {offers.map((offer) => (
+            <motion.div 
+              key={offer.id}
+              whileHover={{ y: -10 }}
+              className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
+              <div className="flex justify-between items-start mb-6">
+                <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
+                  {offer.icon === 'zap' ? <Zap className="w-6 h-6 text-brand-red" /> : <Tag className="w-6 h-6 text-brand-red" />}
+                </div>
+                <div className="text-left">
+                  <span className="text-4xl font-display font-black text-brand-red">{offer.price}</span>
+                  {offer.subtitle && <div className="text-[10px] text-brand-red font-bold uppercase mt-1">{offer.subtitle}</div>}
+                </div>
+              </div>
+              <h3 className="text-2xl font-display font-black mb-4 italic">{offer.title}</h3>
+              <ul className="space-y-3 text-gray-400 mb-8">
+                {offer.features.map((feature, idx) => (
+                  <li key={idx} className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-brand-red" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Link to="/booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
+                احجز هذا العرض الآن
+                <ChevronDown className="w-4 h-4 -rotate-90" />
+              </Link>
+            </motion.div>
+          ))}
+        </div>
       </div>
+    </section>
+  );
+};
 
-      <div className="grid md:grid-cols-2 gap-8">
-        <motion.div 
-          whileHover={{ y: -10 }}
-          className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
-        >
-          <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
-              <Tag className="w-6 h-6 text-brand-red" />
-            </div>
-            <div className="text-left">
-              <span className="text-4xl font-display font-black text-brand-red">مجاني</span>
-              <div className="text-[10px] text-brand-red font-bold uppercase mt-1">99 ريال في حال عدم الإصلاح</div>
-            </div>
-          </div>
-          <h3 className="text-2xl font-display font-black mb-4 italic">كشف شامل على السيارة</h3>
-          <ul className="space-y-3 text-gray-400 mb-8">
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              للسيارات 4 سلندر فقط
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              لا يشمل فحص الكهرباء
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              الكشف مجاني عند الإصلاح لدينا
-            </li>
-          </ul>
-          <a href="#booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
-            احجز هذا العرض الآن
-            <ChevronDown className="w-4 h-4 -rotate-90" />
-          </a>
-        </motion.div>
+const Gallery = () => {
+  const [items, setItems] = useState<GalleryItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-        <motion.div 
-          whileHover={{ y: -10 }}
-          className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
-        >
-          <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
-              <Zap className="w-6 h-6 text-brand-red" />
-            </div>
-            <div className="text-left">
-              <span className="text-4xl font-display font-black text-brand-red">298</span>
-              <span className="text-sm font-bold text-gray-400 mr-1">ريال</span>
-              <div className="text-[10px] text-brand-red font-bold uppercase mt-1 text-left">للسيارات 4 سلندر</div>
-            </div>
-          </div>
-          <h3 className="text-2xl font-display font-black mb-4 italic">باقة الصيانة المتكاملة</h3>
-          <ul className="space-y-3 text-gray-400 mb-8">
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تغيير بواجي
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تنظيف بخاخات
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تنظيف بوابة (Throttle)
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تغيير طرمبة بنزين
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تشييك شامل على المكيف
-            </li>
-          </ul>
-          <a href="#booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
-            احجز هذا العرض الآن
-            <ChevronDown className="w-4 h-4 -rotate-90" />
-          </a>
-        </motion.div>
+  useEffect(() => {
+    const q = query(collection(db, 'gallery'), orderBy('createdAt', 'desc'), limit(8));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const results: GalleryItem[] = [];
+      snapshot.forEach((doc) => {
+        results.push({ id: doc.id, ...doc.data() } as GalleryItem);
+      });
+      setItems(results);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'gallery');
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (loading || items.length === 0) return null;
+
+  return (
+    <section id="gallery" className="py-24 bg-brand-dark">
+      <div className="max-w-7xl mx-auto px-4 md:px-6">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">معرض <span className="text-brand-red">الأعمال</span></h2>
+          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+          <p className="mt-6 text-gray-400">نفتخر بمشاركة بعض من أعمالنا الأخيرة معكم</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {items.map((item, idx) => (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              transition={{ delay: idx * 0.1 }}
+              viewport={{ once: true }}
+              className="group relative aspect-square rounded-2xl overflow-hidden border border-white/10"
+            >
+              <img 
+                src={item.imageUrl} 
+                alt={item.title} 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6">
+                <span className="text-brand-red text-xs font-bold uppercase tracking-widest mb-1">{item.category}</span>
+                <h4 className="text-white font-bold">{item.title}</h4>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const BookingForm = ({ selectedService }: { selectedService?: string }) => {
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -497,6 +725,26 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
       `*نوع الخدمة:* ${serviceLabels[data.serviceType] || data.serviceType}\n` +
       `*وصف المشكلة:* ${data.description}\n` +
       `*رقم الجوال:* ${data.phone}`;
+
+    // Create automatic maintenance record
+    const createRecord = async () => {
+      try {
+        await addDoc(collection(db, 'maintenance'), {
+          customerPhone: data.phone.trim(),
+          carModel: `${data.carMake} ${data.carModel} ${data.carYear}`,
+          serviceType: `حجز: ${serviceLabels[data.serviceType] || data.serviceType}`,
+          notes: `طلب حجز تلقائي: ${data.description}`,
+          cost: 0,
+          serviceDate: serverTimestamp()
+        });
+        // Save phone to localStorage for auto-search in history
+        localStorage.setItem('drfix_customer_phone', data.phone.trim());
+      } catch (error) {
+        console.error("Error creating auto record:", error);
+      }
+    };
+
+    createRecord();
 
     // Simulate a loading process for the tire animation
     setTimeout(() => {
@@ -669,17 +917,25 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
   );
 };
 
-const TestimonialCard = ({ name, comment, rating }: { name: string, comment: string, rating: number }) => (
+const TestimonialCard = ({ name, comment, rating, reply }: { name: string, comment: string, rating: number, reply?: string }) => (
   <motion.div 
     whileHover={{ y: -5 }}
-    className="glass-card p-6 border-white/5 hover:border-brand-red/30 transition-all shadow-xl"
+    className="glass-card p-6 border-white/5 hover:border-brand-red/30 transition-all shadow-xl h-full flex flex-col"
   >
     <div className="flex gap-1 mb-4">
       {[...Array(5)].map((_, i) => (
         <Star key={i} className={cn("w-4 h-4", i < rating ? "text-yellow-500 fill-yellow-500" : "text-gray-600")} />
       ))}
     </div>
-    <p className="text-gray-300 italic mb-6 leading-relaxed">"{comment}"</p>
+    <p className="text-gray-300 italic mb-6 leading-relaxed flex-grow">"{comment}"</p>
+    
+    {reply && (
+      <div className="mb-6 bg-brand-red/5 border-r-2 border-brand-red p-4 rounded-l-xl">
+        <div className="text-[10px] font-bold text-brand-red uppercase tracking-widest mb-1">رد الإدارة</div>
+        <p className="text-gray-400 text-sm italic">{reply}</p>
+      </div>
+    )}
+
     <div className="flex items-center gap-3">
       <div className="w-10 h-10 bg-brand-red/20 rounded-full flex items-center justify-center font-bold text-brand-red">
         {name[0]}
@@ -742,6 +998,7 @@ const Testimonials = () => {
                     name={t.name} 
                     comment={t.comment} 
                     rating={t.rating} 
+                    reply={(t as any).reply}
                   />
                 </div>
               ))}
@@ -858,6 +1115,1299 @@ const AddTestimonialForm = () => {
   );
 };
 
+interface MaintenanceRecord {
+  id: string;
+  customerPhone: string;
+  carModel: string;
+  serviceDate: Timestamp;
+  serviceType: string;
+  notes?: string;
+  cost?: number;
+  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
+}
+
+interface GalleryItem {
+  id: string;
+  imageUrl: string;
+  title: string;
+  category: string;
+  createdAt: Timestamp;
+}
+
+interface ServiceItem {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  price?: string;
+  order?: number;
+}
+
+interface Offer {
+  id: string;
+  title: string;
+  price: string;
+  subtitle?: string;
+  features: string[];
+  icon: 'tag' | 'zap';
+  active: boolean;
+  createdAt: Timestamp;
+}
+
+const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onLogout: () => void, settings: AppSettings }) => {
+  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ id: string, type: 'service' | 'offer' | 'gallery' | 'booking' } | null>(null);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'content' | 'customers' | 'testimonials' | 'settings'>('dashboard');
+  const [contentTab, setContentTab] = useState<'services' | 'offers' | 'gallery'>('services');
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [searchPhone, setSearchPhone] = useState('');
+  const [customerHistory, setCustomerHistory] = useState<MaintenanceRecord[]>([]);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(Notification.permission);
+
+  // Form States
+  const [formData, setFormData] = useState({
+    customerPhone: '',
+    carModel: '',
+    serviceType: '',
+    notes: '',
+    cost: '',
+    status: 'pending' as 'pending' | 'in-progress' | 'completed' | 'cancelled'
+  });
+
+  const [offerForm, setOfferForm] = useState({
+    title: '',
+    price: '',
+    subtitle: '',
+    features: '',
+    icon: 'tag' as 'tag' | 'zap'
+  });
+
+  const [serviceForm, setServiceForm] = useState({
+    title: '',
+    description: '',
+    icon: 'Wrench',
+    price: ''
+  });
+
+  const [galleryForm, setGalleryForm] = useState({
+    title: '',
+    imageUrl: '',
+    category: 'صيانة'
+  });
+
+  const [settingsForm, setSettingsForm] = useState({
+    logoUrl: settings.logoUrl || '',
+    siteName: settings.siteName || 'Dr.Fix'
+  });
+
+  useEffect(() => {
+    setSettingsForm({
+      logoUrl: settings.logoUrl || '',
+      siteName: settings.siteName || 'Dr.Fix'
+    });
+  }, [settings]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      // Request notification permission
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          setNotificationPermission(permission);
+        });
+      }
+
+      // Maintenance
+      const qM = query(collection(db, 'maintenance'), orderBy('serviceDate', 'desc'));
+      let isInitialLoad = true;
+
+      const unsubM = onSnapshot(qM, (snapshot) => {
+        const results: MaintenanceRecord[] = [];
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added" && !isInitialLoad) {
+            const newBooking = change.doc.data() as MaintenanceRecord;
+            if (Notification.permission === "granted") {
+              new Notification("حجز جديد! 🚗", {
+                body: `حجز جديد لسيارة ${newBooking.carModel} - ${newBooking.serviceType}`,
+                icon: settings.logoUrl || "/favicon.ico"
+              });
+            }
+          }
+        });
+
+        snapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as MaintenanceRecord);
+        });
+        setRecords(results);
+        isInitialLoad = false;
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'maintenance'));
+
+      // Testimonials
+      const qT = query(collection(db, 'testimonials'), orderBy('createdAt', 'desc'));
+      const unsubT = onSnapshot(qT, (snapshot) => {
+        const results: TestimonialData[] = [];
+        snapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as TestimonialData);
+        });
+        setTestimonials(results);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'testimonials'));
+
+      // Offers
+      const qO = query(collection(db, 'offers'), orderBy('createdAt', 'desc'));
+      const unsubO = onSnapshot(qO, (snapshot) => {
+        const results: Offer[] = [];
+        snapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as Offer);
+        });
+        setOffers(results);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'offers'));
+
+      // Services
+      const qS = query(collection(db, 'services'));
+      const unsubS = onSnapshot(qS, (snapshot) => {
+        const results: ServiceItem[] = [];
+        snapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as ServiceItem);
+        });
+        setServices(results);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'services'));
+
+      // Gallery
+      const qG = query(collection(db, 'gallery'), orderBy('createdAt', 'desc'));
+      const unsubG = onSnapshot(qG, (snapshot) => {
+        const results: GalleryItem[] = [];
+        snapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as GalleryItem);
+        });
+        setGallery(results);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'gallery'));
+
+      return () => {
+        unsubM();
+        unsubT();
+        unsubO();
+        unsubS();
+        unsubG();
+      };
+    }
+  }, [isAdmin]);
+
+  const handleAddRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (editingItem && editingItem.type === 'booking') {
+        await updateDoc(doc(db, 'maintenance', editingItem.id), {
+          ...formData,
+          cost: Number(formData.cost)
+        });
+      } else {
+        await addDoc(collection(db, 'maintenance'), {
+          ...formData,
+          cost: Number(formData.cost),
+          serviceDate: serverTimestamp(),
+          status: 'pending'
+        });
+      }
+      setFormData({ customerPhone: '', carModel: '', serviceType: '', notes: '', cost: '', status: 'pending' });
+      setIsAdding(false);
+      setEditingItem(null);
+    } catch (error) {
+      console.error("Error saving record:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const data = {
+        ...offerForm,
+        features: offerForm.features.split('\n').filter(f => f.trim()),
+        updatedAt: serverTimestamp()
+      };
+      if (editingItem && editingItem.type === 'offer') {
+        await updateDoc(doc(db, 'offers', editingItem.id), data);
+      } else {
+        await addDoc(collection(db, 'offers'), { ...data, active: true, createdAt: serverTimestamp() });
+      }
+      setOfferForm({ title: '', price: '', subtitle: '', features: '', icon: 'tag' });
+      setIsAdding(false);
+      setEditingItem(null);
+    } catch (error) {
+      console.error("Error saving offer:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (editingItem && editingItem.type === 'service') {
+        await updateDoc(doc(db, 'services', editingItem.id), serviceForm);
+      } else {
+        await addDoc(collection(db, 'services'), serviceForm);
+      }
+      setServiceForm({ title: '', description: '', icon: 'Wrench', price: '' });
+      setIsAdding(false);
+      setEditingItem(null);
+    } catch (error) {
+      console.error("Error saving service:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddGallery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const data = {
+        ...galleryForm,
+        updatedAt: serverTimestamp()
+      };
+      if (editingItem && editingItem.type === 'gallery') {
+        await updateDoc(doc(db, 'gallery', editingItem.id), data);
+      } else {
+        await addDoc(collection(db, 'gallery'), { ...data, createdAt: serverTimestamp() });
+      }
+      setGalleryForm({ title: '', imageUrl: '', category: 'صيانة' });
+      setIsAdding(false);
+      setEditingItem(null);
+    } catch (error) {
+      console.error("Error saving gallery item:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (type: 'service' | 'offer' | 'gallery' | 'booking', item: any) => {
+    setEditingItem({ id: item.id, type });
+    if (type === 'service') {
+      setServiceForm({
+        title: item.title,
+        description: item.description,
+        icon: item.icon || 'Wrench',
+        price: item.price || ''
+      });
+    } else if (type === 'offer') {
+      setOfferForm({
+        title: item.title,
+        price: item.price,
+        subtitle: item.subtitle,
+        features: item.features.join('\n'),
+        icon: item.icon
+      });
+    } else if (type === 'gallery') {
+      setGalleryForm({
+        title: item.title,
+        imageUrl: item.imageUrl,
+        category: item.category
+      });
+    } else if (type === 'booking') {
+      setFormData({
+        customerPhone: item.customerPhone,
+        carModel: item.carModel,
+        serviceType: item.serviceType,
+        notes: item.notes || '',
+        cost: item.cost?.toString() || '',
+        status: item.status
+      });
+    }
+    setIsAdding(true);
+  };
+
+  const handleToggleOfferStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      await updateDoc(doc(db, 'offers', id), {
+        active: !currentStatus
+      });
+    } catch (error) {
+      console.error("Error toggling offer status:", error);
+    }
+  };
+
+  const handleDelete = async (collectionName: string, id: string) => {
+    if (window.confirm('هل أنت متأكد من الحذف؟')) {
+      try {
+        await deleteDoc(doc(db, collectionName, id));
+      } catch (error) {
+        console.error(`Error deleting from ${collectionName}:`, error);
+      }
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, newStatus: MaintenanceRecord['status']) => {
+    try {
+      await updateDoc(doc(db, 'maintenance', id), {
+        status: newStatus
+      });
+    } catch (error) {
+      console.error("Error updating status:", error);
+    }
+  };
+
+  const handleReply = async (testimonialId: string) => {
+    if (!replyText.trim()) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'testimonials', testimonialId), {
+        reply: replyText
+      });
+      setReplyingTo(null);
+      setReplyText('');
+    } catch (error) {
+      console.error("Error replying to testimonial:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = () => {
+    if (!searchPhone.trim()) return;
+    const history = records.filter(r => r.customerPhone.includes(searchPhone.trim()));
+    setCustomerHistory(history);
+  };
+
+  const handleUpdateSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'stats', 'global'), {
+        logoUrl: settingsForm.logoUrl,
+        siteName: settingsForm.siteName
+      });
+      alert('تم تحديث الإعدادات بنجاح');
+    } catch (error) {
+      console.error("Error updating settings:", error);
+      handleFirestoreError(error, OperationType.UPDATE, 'stats/global');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getChartData = () => {
+    const last7Days = [...Array(7)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return d.toLocaleDateString('ar-SA', { weekday: 'short' });
+    }).reverse();
+
+    const data = last7Days.map(day => {
+      const count = records.filter(r => {
+        const rDate = r.serviceDate?.toDate().toLocaleDateString('ar-SA', { weekday: 'short' });
+        return rDate === day;
+      }).length;
+      return { name: day, bookings: count };
+    });
+
+    return data;
+  };
+
+  const getServiceStats = () => {
+    const stats: Record<string, number> = {};
+    records.forEach(r => {
+      stats[r.serviceType] = (stats[r.serviceType] || 0) + 1;
+    });
+    return Object.entries(stats).map(([name, value]) => ({ name, value }));
+  };
+
+  const COLORS = ['#FF0000', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+
+  if (!isAdmin) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <section id="admin" className="py-24 bg-brand-black border-t border-white/5 min-h-screen">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex flex-wrap justify-between items-center gap-6 mb-12">
+          <div>
+            <h2 className="text-3xl font-display font-black italic mb-2">لوحة تحكم <span className="text-brand-red">المدير</span></h2>
+            <div className="flex items-center gap-4 text-gray-500 text-sm">
+              <span>إدارة المركز والخدمات</span>
+              <span className="w-1 h-1 bg-gray-700 rounded-full" />
+              <span>{records.length} حجز إجمالي</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            {notificationPermission !== 'granted' && (
+              <button 
+                onClick={() => {
+                  Notification.requestPermission().then(setNotificationPermission);
+                }}
+                className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-yellow-500"
+                title="تفعيل التنبيهات"
+              >
+                <AlertCircle className="w-5 h-5" />
+              </button>
+            )}
+            <button 
+              onClick={() => setIsAdding(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-brand-red rounded-xl font-bold italic hover:bg-red-700 transition-all shadow-lg shadow-brand-red/20"
+            >
+              <PlusCircle className="w-5 h-5" />
+              إضافة جديد
+            </button>
+            <button 
+              onClick={onLogout}
+              className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-gray-400"
+              title="تسجيل الخروج"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Main Navigation Tabs */}
+        <div className="flex flex-wrap gap-2 mb-8 bg-white/5 p-1 rounded-2xl border border-white/5">
+          {[
+            { id: 'dashboard', label: 'الإحصائيات', icon: BarChart },
+            { id: 'bookings', label: 'الحجوزات', icon: Calendar },
+            { id: 'content', label: 'المحتوى', icon: FileText },
+            { id: 'customers', label: 'العملاء', icon: User },
+            { id: 'testimonials', label: 'التعليقات', icon: MessageSquare },
+            { id: 'settings', label: 'الإعدادات', icon: Settings },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={cn(
+                "flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all flex-1 md:flex-none justify-center",
+                activeTab === tab.id 
+                  ? "bg-brand-red text-white shadow-lg shadow-brand-red/20" 
+                  : "text-gray-500 hover:text-white hover:bg-white/5"
+              )}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <AnimatePresence mode="wait">
+          {activeTab === 'dashboard' && (
+            <motion.div 
+              key="dashboard"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {/* Stats Cards */}
+              <div className="glass-card p-6 border-brand-red/20">
+                <div className="text-gray-500 text-sm mb-2">إجمالي الحجوزات</div>
+                <div className="text-4xl font-display font-black text-brand-red">{records.length}</div>
+                <div className="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-red" style={{ width: '70%' }} />
+                </div>
+              </div>
+              <div className="glass-card p-6 border-brand-red/20">
+                <div className="text-gray-500 text-sm mb-2">إجمالي الإيرادات</div>
+                <div className="text-4xl font-display font-black text-brand-red">
+                  {records.reduce((acc, curr) => acc + (curr.cost || 0), 0).toLocaleString()} <span className="text-sm">ريال</span>
+                </div>
+                <div className="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-red" style={{ width: '85%' }} />
+                </div>
+              </div>
+              <div className="glass-card p-6 border-brand-red/20">
+                <div className="text-gray-500 text-sm mb-2">الطلبات النشطة</div>
+                <div className="text-4xl font-display font-black text-brand-red">
+                  {records.filter(r => r.status === 'in-progress' || r.status === 'pending').length}
+                </div>
+                <div className="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-red" style={{ width: '40%' }} />
+                </div>
+              </div>
+              <div className="glass-card p-6 border-brand-red/20">
+                <div className="text-gray-500 text-sm mb-2">التعليقات الجديدة</div>
+                <div className="text-4xl font-display font-black text-brand-red">
+                  {testimonials.filter(t => !t.reply).length}
+                </div>
+                <div className="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-red" style={{ width: '25%' }} />
+                </div>
+              </div>
+
+              {/* Charts */}
+              <div className="md:col-span-2 glass-card p-6 border-white/5">
+                <h3 className="text-lg font-bold mb-6">حركة الحجوزات (آخر 7 أيام)</h3>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={getChartData()}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis dataKey="name" stroke="#666" />
+                      <YAxis stroke="#666" />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333' }}
+                        itemStyle={{ color: '#FF0000' }}
+                      />
+                      <Line type="monotone" dataKey="bookings" stroke="#FF0000" strokeWidth={3} dot={{ fill: '#FF0000' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="glass-card p-6 border-white/5">
+                <h3 className="text-lg font-bold mb-6">الخدمات الأكثر طلباً</h3>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={getServiceStats()}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {getServiceStats().map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'bookings' && (
+            <motion.div 
+              key="bookings"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="glass-card overflow-hidden border-white/5"
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full text-right">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-gray-500">السيارة</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-gray-500">العميل</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-gray-500">الخدمة</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-gray-500">الحالة</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-gray-500">التكلفة</th>
+                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-gray-500">إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {records.map((record) => (
+                      <tr key={record.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold">{record.carModel}</div>
+                          <div className="text-xs text-gray-500">{record.serviceDate?.toDate().toLocaleDateString('ar-SA')}</div>
+                        </td>
+                        <td className="px-6 py-4 text-sm">{record.customerPhone}</td>
+                        <td className="px-6 py-4 text-sm">{record.serviceType}</td>
+                        <td className="px-6 py-4">
+                          <select 
+                            value={record.status}
+                            onChange={(e) => handleUpdateStatus(record.id, e.target.value as any)}
+                            className={cn(
+                              "text-xs font-bold px-3 py-1 rounded-full bg-black/50 border outline-none",
+                              record.status === 'completed' ? "text-green-500 border-green-500/20" :
+                              record.status === 'in-progress' ? "text-blue-500 border-blue-500/20" :
+                              record.status === 'cancelled' ? "text-red-500 border-red-500/20" :
+                              "text-yellow-500 border-yellow-500/20"
+                            )}
+                          >
+                            <option value="pending">قيد الانتظار</option>
+                            <option value="in-progress">قيد العمل</option>
+                            <option value="completed">مكتمل</option>
+                            <option value="cancelled">ملغي</option>
+                          </select>
+                        </td>
+                        <td className="px-6 py-4 font-bold text-brand-red">{record.cost} ريال</td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => handleEdit('booking', record)}
+                              className="p-2 text-gray-600 hover:text-white transition-colors"
+                              title="تعديل"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete('maintenance', record.id)}
+                              className="p-2 text-gray-600 hover:text-brand-red transition-colors"
+                              title="حذف"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'content' && (
+            <motion.div 
+              key="content"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-8"
+            >
+              {/* Content Sub-tabs */}
+              <div className="flex gap-4 border-b border-white/5 pb-4">
+                {[
+                  { id: 'services', label: 'الخدمات' },
+                  { id: 'offers', label: 'العروض' },
+                  { id: 'gallery', label: 'المعرض' },
+                ].map((sub) => (
+                  <button
+                    key={sub.id}
+                    onClick={() => setContentTab(sub.id as any)}
+                    className={cn(
+                      "px-4 py-2 rounded-lg text-sm font-bold transition-all",
+                      contentTab === sub.id ? "bg-brand-red/10 text-brand-red border border-brand-red/20" : "text-gray-500 hover:text-white"
+                    )}
+                  >
+                    {sub.label}
+                  </button>
+                ))}
+              </div>
+
+              {contentTab === 'services' && (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {services.map((s) => (
+                    <div key={s.id} className="glass-card p-6 border-white/5 group">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="w-10 h-10 bg-brand-red/10 rounded-lg flex items-center justify-center text-brand-red">
+                          <Wrench className="w-5 h-5" />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleEdit('service', s)} className="text-gray-600 hover:text-white transition-colors">
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDelete('services', s.id)} className="text-gray-600 hover:text-brand-red transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <h4 className="font-bold mb-2">{s.title}</h4>
+                      <p className="text-gray-500 text-xs line-clamp-2">{s.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {contentTab === 'offers' && (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {offers.map((o) => (
+                    <div key={o.id} className="glass-card p-6 border-white/5">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="font-display font-black text-brand-red text-xl">{o.price}</div>
+                          <button 
+                            onClick={() => handleToggleOfferStatus(o.id, o.active !== false)}
+                            className={cn(
+                              "text-[10px] px-2 py-1 rounded-full font-bold",
+                              o.active !== false ? "bg-green-500/10 text-green-500 border border-green-500/20" : "bg-gray-500/10 text-gray-500 border border-gray-500/20"
+                            )}
+                          >
+                            {o.active !== false ? 'نشط' : 'متوقف'}
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleEdit('offer', o)} className="text-gray-600 hover:text-white transition-colors">
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDelete('offers', o.id)} className="text-gray-600 hover:text-brand-red transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <h4 className="font-bold mb-2">{o.title}</h4>
+                      <div className="text-xs text-gray-500">{o.features.length} مميزات</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {contentTab === 'gallery' && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {gallery.map((item) => (
+                    <div key={item.id} className="relative group aspect-square rounded-xl overflow-hidden border border-white/10">
+                      <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center">
+                        <div className="text-xs font-bold mb-2">{item.title}</div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => handleEdit('gallery', item)}
+                            className="p-2 bg-white/10 rounded-lg text-white hover:bg-white/20"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete('gallery', item.id)}
+                            className="p-2 bg-brand-red rounded-lg text-white hover:bg-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === 'customers' && (
+            <motion.div 
+              key="customers"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-8"
+            >
+              <div className="glass-card p-8 border-white/5">
+                <h3 className="text-xl font-bold mb-6">البحث عن سجل عميل</h3>
+                <div className="flex gap-4">
+                  <input 
+                    type="tel"
+                    value={searchPhone}
+                    onChange={(e) => setSearchPhone(e.target.value)}
+                    placeholder="أدخل رقم الجوال..."
+                    className="flex-1 bg-black/50 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-brand-red transition-all"
+                  />
+                  <button 
+                    onClick={handleSearch}
+                    className="px-8 bg-brand-red rounded-xl font-bold flex items-center gap-2"
+                  >
+                    <Search className="w-5 h-5" />
+                    بحث
+                  </button>
+                </div>
+              </div>
+
+              {customerHistory.length > 0 && (
+                <div className="space-y-4">
+                  <h4 className="font-bold text-gray-500">نتائج البحث ({customerHistory.length})</h4>
+                  {customerHistory.map((record) => (
+                    <div key={record.id} className="glass-card p-6 border-white/5 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-bold text-lg">{record.carModel}</div>
+                          <div className="text-sm text-gray-500">{record.serviceDate?.toDate().toLocaleDateString('ar-SA')}</div>
+                        </div>
+                        <div className="text-brand-red font-display font-black text-xl">{record.cost} ريال</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="bg-white/5 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">الخدمة</div>
+                          <div className="font-bold">{record.serviceType}</div>
+                        </div>
+                        <div className="bg-white/5 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">الحالة</div>
+                          <div className={cn(
+                            "font-bold",
+                            record.status === 'completed' ? "text-green-500" : "text-yellow-500"
+                          )}>
+                            {record.status === 'completed' ? 'مكتمل' : 'قيد المعالجة'}
+                          </div>
+                        </div>
+                      </div>
+                      {record.notes && (
+                        <div className="bg-white/5 p-3 rounded-lg">
+                          <div className="text-gray-500 text-xs mb-1">ملاحظات الفني</div>
+                          <p className="text-gray-400 italic text-xs">{record.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === 'testimonials' && (
+            <motion.div 
+              key="testimonials"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-4"
+            >
+              {testimonials.map((t) => (
+                <div key={t.id} className="glass-card p-6 border-white/5">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-brand-red/10 rounded-full flex items-center justify-center font-bold text-brand-red">
+                        {t.name[0]}
+                      </div>
+                      <div>
+                        <div className="font-bold">{t.name}</div>
+                        <div className="flex gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className={cn("w-3 h-3", i < t.rating ? "fill-brand-red text-brand-red" : "text-gray-700")} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={() => handleDelete('testimonials', t.id!)} className="text-gray-600 hover:text-brand-red">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-gray-400 text-sm italic mb-4">"{t.comment}"</p>
+                  
+                  {t.reply ? (
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 text-sm">
+                      <div className="text-brand-red font-bold mb-1 text-xs">ردك:</div>
+                      <p className="text-gray-500">{t.reply}</p>
+                      <button 
+                        onClick={() => {
+                          setReplyingTo(t.id!);
+                          setReplyText(t.reply || '');
+                        }}
+                        className="mt-2 text-xs text-gray-600 hover:text-white"
+                      >
+                        تعديل الرد
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {replyingTo === t.id ? (
+                        <div className="flex gap-2">
+                          <input 
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-red"
+                            placeholder="اكتب ردك..."
+                          />
+                          <button onClick={() => handleReply(t.id!)} className="px-4 bg-brand-red rounded-lg text-xs font-bold">إرسال</button>
+                          <button onClick={() => setReplyingTo(null)} className="px-4 bg-white/5 rounded-lg text-xs">إلغاء</button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setReplyingTo(t.id!)}
+                          className="text-xs text-brand-red font-bold hover:underline"
+                        >
+                          إضافة رد
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </motion.div>
+          )}
+
+          {activeTab === 'settings' && (
+            <motion.div
+              key="settings"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="glass-card p-8 border-white/5"
+            >
+              <h3 className="text-xl font-bold mb-8 flex items-center gap-2">
+                <Settings className="w-5 h-5 text-brand-red" />
+                إعدادات الموقع العامة
+              </h3>
+
+              <form onSubmit={handleUpdateSettings} className="max-w-2xl space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">اسم الموقع</label>
+                  <input 
+                    type="text"
+                    value={settingsForm.siteName}
+                    onChange={e => setSettingsForm({...settingsForm, siteName: e.target.value})}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">رابط اللوجو (URL)</label>
+                  <div className="flex gap-4">
+                    <input 
+                      type="url"
+                      value={settingsForm.logoUrl}
+                      onChange={e => setSettingsForm({...settingsForm, logoUrl: e.target.value})}
+                      placeholder="https://example.com/logo.png"
+                      className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                    />
+                    {settingsForm.logoUrl && (
+                      <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
+                        <img src={settingsForm.logoUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">يفضل استخدام صورة بخلفية شفافة (PNG) وبمقاس مربع.</p>
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="px-8 py-4 bg-brand-red rounded-xl font-bold italic hover:bg-red-700 transition-all disabled:opacity-50"
+                >
+                  {loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+                </button>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Add New Modal */}
+        <AnimatePresence>
+          {isAdding && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsAdding(false)}
+                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative w-full max-w-2xl bg-brand-dark border border-white/10 rounded-3xl p-8 shadow-2xl overflow-y-auto max-h-[90vh]"
+              >
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-2xl font-display font-black italic">
+                    {editingItem ? 'تعديل' : 'إضافة'} {activeTab === 'maintenance' || activeTab === 'bookings' ? 'سجل' : 
+                          activeTab === 'content' ? (contentTab === 'services' ? 'خدمة' : contentTab === 'offers' ? 'عرض' : 'صورة') : 'جديد'}
+                  </h3>
+                  <button onClick={() => { setIsAdding(false); setEditingItem(null); }} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                {(activeTab === 'maintenance' || activeTab === 'bookings') && (
+                  <form onSubmit={handleAddRecord} className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">رقم الجوال</label>
+                      <input 
+                        required
+                        value={formData.customerPhone}
+                        onChange={e => setFormData({...formData, customerPhone: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">السيارة</label>
+                      <input 
+                        required
+                        value={formData.carModel}
+                        onChange={e => setFormData({...formData, carModel: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">نوع الخدمة</label>
+                      <input 
+                        required
+                        value={formData.serviceType}
+                        onChange={e => setFormData({...formData, serviceType: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">التكلفة</label>
+                      <input 
+                        type="number"
+                        value={formData.cost}
+                        onChange={e => setFormData({...formData, cost: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">ملاحظات</label>
+                      <textarea 
+                        value={formData.notes}
+                        onChange={e => setFormData({...formData, notes: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red h-24"
+                      />
+                    </div>
+                    <button className="md:col-span-2 py-4 bg-brand-red rounded-xl font-bold italic">
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (editingItem ? 'تحديث السجل' : 'حفظ السجل')}
+                    </button>
+                  </form>
+                )}
+
+                {activeTab === 'content' && contentTab === 'services' && (
+                  <form onSubmit={handleAddService} className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">اسم الخدمة</label>
+                      <input 
+                        required
+                        value={serviceForm.title}
+                        onChange={e => setServiceForm({...serviceForm, title: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">الوصف</label>
+                      <textarea 
+                        required
+                        value={serviceForm.description}
+                        onChange={e => setServiceForm({...serviceForm, description: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red h-24"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">السعر (اختياري)</label>
+                      <input 
+                        value={serviceForm.price}
+                        onChange={e => setServiceForm({...serviceForm, price: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <button className="w-full py-4 bg-brand-red rounded-xl font-bold italic">
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (editingItem ? 'تحديث الخدمة' : 'إضافة الخدمة')}
+                    </button>
+                  </form>
+                )}
+
+                {activeTab === 'content' && contentTab === 'offers' && (
+                  <form onSubmit={handleAddOffer} className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">عنوان العرض</label>
+                      <input 
+                        required
+                        value={offerForm.title}
+                        onChange={e => setOfferForm({...offerForm, title: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">السعر</label>
+                      <input 
+                        required
+                        value={offerForm.price}
+                        onChange={e => setOfferForm({...offerForm, price: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">المميزات (كل سطر ميزة)</label>
+                      <textarea 
+                        required
+                        value={offerForm.features}
+                        onChange={e => setOfferForm({...offerForm, features: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red h-32"
+                      />
+                    </div>
+                    <button className="w-full py-4 bg-brand-red rounded-xl font-bold italic">إضافة العرض</button>
+                  </form>
+                )}
+
+                {activeTab === 'content' && contentTab === 'gallery' && (
+                  <form onSubmit={handleAddGallery} className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">عنوان الصورة</label>
+                      <input 
+                        required
+                        value={galleryForm.title}
+                        onChange={e => setGalleryForm({...galleryForm, title: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-500 uppercase">رابط الصورة</label>
+                      <input 
+                        required
+                        value={galleryForm.imageUrl}
+                        onChange={e => setGalleryForm({...galleryForm, imageUrl: e.target.value})}
+                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <button className="w-full py-4 bg-brand-red rounded-xl font-bold italic">إضافة للمعرض</button>
+                  </form>
+                )}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
+    </section>
+  );
+};
+
+const MaintenanceHistory = () => {
+  const [phone, setPhone] = useState('');
+  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  useEffect(() => {
+    const savedPhone = localStorage.getItem('drfix_customer_phone');
+    if (savedPhone) {
+      setPhone(savedPhone);
+      performSearch(savedPhone);
+    }
+  }, []);
+
+  const performSearch = async (phoneNumber: string) => {
+    if (!phoneNumber.trim()) return;
+
+    setLoading(true);
+    setHasSearched(true);
+    try {
+      // Try with orderBy first, if it fails (likely missing index), fallback to simple query
+      let q;
+      try {
+        q = query(
+          collection(db, 'maintenance'),
+          where('customerPhone', '==', phoneNumber.trim()),
+          orderBy('serviceDate', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        const results: MaintenanceRecord[] = [];
+        querySnapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as MaintenanceRecord);
+        });
+        setRecords(results);
+      } catch (indexError) {
+        console.warn("Composite index might be missing, falling back to simple query:", indexError);
+        q = query(
+          collection(db, 'maintenance'),
+          where('customerPhone', '==', phoneNumber.trim())
+        );
+        const querySnapshot = await getDocs(q);
+        const results: MaintenanceRecord[] = [];
+        querySnapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as MaintenanceRecord);
+        });
+        // Sort manually if index is missing
+        results.sort((a, b) => {
+          const dateA = a.serviceDate?.toMillis?.() || 0;
+          const dateB = b.serviceDate?.toMillis?.() || 0;
+          return dateB - dateA;
+        });
+        setRecords(results);
+      }
+    } catch (error) {
+      console.error("Error fetching maintenance records:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    performSearch(phone);
+  };
+
+  return (
+    <section id="history" className="py-24 bg-black relative overflow-hidden">
+      <div className="max-w-4xl mx-auto px-6 relative z-10">
+        <div className="text-center mb-16">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.5 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-red/10 border border-brand-red/20 text-brand-red text-xs font-bold uppercase tracking-widest mb-6"
+          >
+            <History className="w-3 h-3" />
+            سجل الصيانة
+          </motion.div>
+          <h2 className="text-4xl md:text-6xl font-display font-black mb-6 italic tracking-tighter">
+            تابع <span className="text-brand-red">تاريخ صيانة</span> سيارتك
+          </h2>
+          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+            أدخل رقم جوالك المسجل لدينا لاستعراض كافة عمليات الصيانة السابقة التي تمت لسيارتك في مركزنا.
+          </p>
+        </div>
+
+        <div className="glass-card p-8 md:p-12 border-white/5 shadow-2xl relative overflow-hidden">
+          <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4 mb-12">
+            <div className="flex-1 relative">
+              <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <input 
+                type="tel" 
+                placeholder="أدخل رقم الجوال (مثال: 05XXXXXXXX)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full bg-black/50 border border-white/10 rounded-xl py-4 pr-12 pl-4 text-white focus:border-brand-red outline-none transition-all font-mono"
+                required
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={loading}
+              className="bg-brand-red hover:bg-red-700 text-white font-display font-black italic px-8 py-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {loading ? 'جاري البحث...' : 'استعراض السجل'}
+            </button>
+          </form>
+
+          {loading ? (
+            <div className="flex flex-col items-center py-12">
+              <div className="w-12 h-12 border-4 border-brand-red border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-gray-500">جاري استرجاع البيانات...</p>
+            </div>
+          ) : hasSearched ? (
+            records.length > 0 ? (
+              <div className="space-y-6">
+                {records.map((record) => (
+                  <motion.div 
+                    key={record.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-brand-red/30 transition-all"
+                  >
+                    <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
+                      <div>
+                        <div className="flex items-center gap-2 text-brand-red font-display font-black italic text-xl mb-1">
+                          <Wrench className="w-5 h-5" />
+                          {record.serviceType}
+                        </div>
+                        <div className="text-gray-400 flex items-center gap-2 text-sm">
+                          <Calendar className="w-4 h-4" />
+                          {record.serviceDate.toDate().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        </div>
+                      </div>
+                      <div className="px-4 py-2 bg-brand-red/10 rounded-lg border border-brand-red/20 text-brand-red font-bold">
+                        {record.carModel}
+                      </div>
+                    </div>
+                    {record.notes && (
+                      <div className="text-gray-500 text-sm leading-relaxed bg-black/30 p-4 rounded-xl border border-white/5">
+                        <FileText className="w-4 h-4 inline-block ml-2 text-gray-600" />
+                        {record.notes}
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-white/5 rounded-2xl border border-dashed border-white/10">
+                <p className="text-gray-500 mb-2">لم يتم العثور على سجلات لهذا الرقم.</p>
+                <p className="text-xs text-gray-600">تأكد من إدخال الرقم الصحيح المسجل في فاتورة الصيانة.</p>
+              </div>
+            )
+          ) : (
+            <div className="text-center py-12">
+              <History className="w-16 h-16 text-white/5 mx-auto mb-4" />
+              <p className="text-gray-600">أدخل رقم جوالك لرؤية سجل صيانة سيارتك</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const FAQItem = ({ question, answer }: { question: string, answer: string }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -911,25 +2461,93 @@ const FAQ = () => (
   </section>
 );
 
-const Footer = () => (
-  <footer className="bg-brand-black border-t border-white/5 py-12">
-    <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-12">
-      <div className="col-span-2">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-xl">
-            <span className="text-brand-red font-display font-black text-xl italic tracking-tighter leading-none">
-              Dr.Fix
-            </span>
-          </div>
-        </div>
-        <p className="text-gray-500 max-w-sm leading-relaxed">
-          مركز الصيانة الأفضل في المنطقة. خبرة تمتد لسنوات في التعامل مع كافة أنواع السيارات والمشاكل التقنية والميكانيكية تحت إشراف المهندس محمد سندي.
-        </p>
-      </div>
+const Footer = ({ settings }: { settings: AppSettings }) => {
+  const [visitors, setVisitors] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateVisitors = async () => {
+      const statsRef = doc(db, 'stats', 'global');
       
-      <div>
-        <h4 className="font-display font-black mb-6 uppercase tracking-widest text-sm">تواصل معنا</h4>
-        <ul className="space-y-4 text-gray-500">
+      try {
+        const statsDoc = await getDoc(statsRef);
+        
+        if (!statsDoc.exists()) {
+          // Create initial doc
+          await setDoc(statsRef, { visitorCount: 1 });
+          setVisitors(1);
+        } else {
+          // Check if already counted in this session
+          const hasVisited = sessionStorage.getItem('hasVisited');
+          if (!hasVisited) {
+            await updateDoc(statsRef, {
+              visitorCount: increment(1)
+            });
+            sessionStorage.setItem('hasVisited', 'true');
+          }
+        }
+        
+        // Listen for real-time updates
+        const unsubscribe = onSnapshot(statsRef, (doc) => {
+          if (doc.exists()) {
+            setVisitors(doc.data().visitorCount);
+          }
+        }, (error) => handleFirestoreError(error, OperationType.GET, 'stats/global'));
+        
+        return unsubscribe;
+      } catch (error) {
+        console.error("Error updating visitor count:", error);
+        return () => {};
+      }
+    };
+
+    let unsub: () => void;
+    updateVisitors().then(u => unsub = u);
+    
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
+
+  return (
+    <footer className="bg-brand-black border-t border-white/5 py-12">
+      <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-12 text-right" dir="rtl">
+        <div className="col-span-2">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
+              {settings.logoUrl ? (
+                <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <span className="text-brand-red font-display font-black text-xl italic tracking-tighter leading-none">
+                  Dr.Fix
+                </span>
+              )}
+            </div>
+          </div>
+          <p className="text-gray-500 max-w-sm leading-relaxed">
+            مركز الصيانة الأفضل في المنطقة. خبرة تمتد لسنوات في التعامل مع كافة أنواع السيارات والمشاكل التقنية والميكانيكية تحت إشراف المهندس محمد سندي.
+          </p>
+          
+          {visitors !== null && (
+            <div className="mt-8 flex items-center gap-2 text-gray-500 text-sm">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span>عدد الزيارات: {visitors.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+        
+        <div>
+          <h4 className="font-display font-black mb-6 uppercase tracking-widest text-sm text-brand-red">روابط سريعة</h4>
+          <ul className="space-y-4 text-gray-500 font-bold">
+            <li><Link to="/" className="hover:text-brand-red transition-colors">الرئيسية</Link></li>
+            <li><Link to="/services" className="hover:text-brand-red transition-colors">الخدمات</Link></li>
+            <li><Link to="/offers" className="hover:text-brand-red transition-colors">العروض</Link></li>
+            <li><Link to="/booking" className="hover:text-brand-red transition-colors">احجز موعداً</Link></li>
+          </ul>
+        </div>
+
+        <div>
+        <h4 className="font-display font-black mb-6 uppercase tracking-widest text-sm text-brand-red">تواصل معنا</h4>
+        <ul className="space-y-4 text-gray-500 font-bold">
           <li className="flex items-center gap-3">
             <Phone className="w-4 h-4 text-brand-red" />
             <a href="tel:0546870807" className="hover:text-brand-red transition-colors">0546870807</a>
@@ -950,7 +2568,7 @@ const Footer = () => (
       </div>
 
       <div>
-        <h4 className="font-display font-black mb-6 uppercase tracking-widest text-sm">تابعنا</h4>
+        <h4 className="font-display font-black mb-6 uppercase tracking-widest text-sm text-brand-red">تابعنا</h4>
         <div className="flex gap-4">
           <motion.a 
             whileHover={{ y: -5, scale: 1.1 }}
@@ -979,11 +2597,18 @@ const Footer = () => (
         </div>
       </div>
     </div>
-    <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-white/5 text-center text-gray-600 text-sm font-mono">
-      &copy; {new Date().getFullYear()} DR. FIX AUTO SERVICES. ALL RIGHTS RESERVED.
+    <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-gray-600 text-sm font-mono">
+      <div>&copy; {new Date().getFullYear()} DR. FIX AUTO SERVICES. ALL RIGHTS RESERVED.</div>
+      <Link 
+        to="/admin"
+        className="text-[10px] md:text-xs opacity-40 hover:opacity-100 transition-opacity uppercase tracking-widest py-2 px-4 border border-white/5 rounded-lg"
+      >
+        Admin Portal
+      </Link>
     </div>
   </footer>
-);
+  );
+};
 
 const ProcessStep = ({ number, title, description }: { number: string, title: string, description: string }) => (
   <motion.div 
@@ -1081,28 +2706,93 @@ const Stats = () => (
 );
 
 export default function App() {
+  return (
+    <Router>
+      <MainContent />
+    </Router>
+  );
+}
+
+function MainContent() {
   const [selectedService, setSelectedService] = useState<string>('');
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>({});
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Listen for settings updates
+    const statsRef = doc(db, 'stats', 'global');
+    const unsubscribe = onSnapshot(statsRef, (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setSettings({
+          logoUrl: data.logoUrl,
+          siteName: data.siteName
+        });
+      }
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'stats/global'));
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    // Scroll to top on route change
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const savedAdmin = sessionStorage.getItem('drfix_admin_logged_in');
+    if (savedAdmin === 'true') {
+      setIsAdminLoggedIn(true);
+    }
+  }, []);
+
+  const handleAdminLoginSuccess = () => {
+    setIsAdminLoggedIn(true);
+    sessionStorage.setItem('drfix_admin_logged_in', 'true');
+    navigate('/admin');
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminLoggedIn(false);
+    sessionStorage.removeItem('drfix_admin_logged_in');
+    navigate('/');
+  };
 
   const handleServiceSelect = (serviceType: string) => {
     setSelectedService(serviceType);
-    const bookingSection = document.getElementById('booking');
-    if (bookingSection) {
-      bookingSection.scrollIntoView({ behavior: 'smooth' });
-    }
+    navigate('/booking');
   };
 
   return (
-    <div className="min-h-screen">
-      <Navbar />
-      <Hero />
-      <Stats />
-      <Services onServiceSelect={handleServiceSelect} />
-      <Offers />
-      <Process />
-      <Testimonials />
-      <BookingForm selectedService={selectedService} />
-      <FAQ />
-      <Footer />
+    <div className="min-h-screen bg-brand-black text-white">
+      <Navbar settings={settings} />
+      
+      <main className="pt-20">
+        <Routes>
+          <Route path="/" element={
+            <>
+              <Hero />
+              <Stats />
+              <Services onServiceSelect={handleServiceSelect} />
+              <Offers />
+              <Gallery />
+              <Process />
+              <Testimonials />
+              <FAQ />
+            </>
+          } />
+          <Route path="/services" element={<Services onServiceSelect={handleServiceSelect} />} />
+          <Route path="/offers" element={<Offers />} />
+          <Route path="/booking" element={<BookingForm selectedService={selectedService} />} />
+          <Route path="/history" element={<MaintenanceHistory />} />
+          <Route path="/admin" element={<AdminDashboard isAdmin={isAdminLoggedIn} onLogout={handleAdminLogout} settings={settings} />} />
+          <Route path="/login" element={<LoginPage onLogin={handleAdminLoginSuccess} />} />
+        </Routes>
+      </main>
+
+      <Footer settings={settings} />
     </div>
   );
 }

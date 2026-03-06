@@ -1,24 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isValidTestimonial(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() < 50 &&
-             data.comment is string && data.comment.size() > 0 && data.comment.size() < 500 &&
-             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
-             data.createdAt is timestamp;
-    }
-
-    match /testimonials/{testimonialId} {
-      // Allow anyone to read testimonials
+    
+    // Allow public read access to all content collections
+    match /services/{serviceId} { allow read: if true; allow write: if true; }
+    match /offers/{offerId} { allow read: if true; allow write: if true; }
+    match /gallery/{itemId} { allow read: if true; allow write: if true; }
+    match /testimonials/{testimonialId} { allow read: if true; allow write: if true; }
+    match /maintenance/{recordId} { allow read: if true; allow write: if true; }
+    match /stats/{docId} { allow read: if true; allow write: if true; }
+    
+    // Global fallback for reading
+    match /{document=**} {
       allow read: if true;
-      
-      // Allow anyone to create a testimonial if it's valid
-      // In a production app, we might want to rate limit or use Auth
-      allow create: if isValidTestimonial(request.resource.data);
-      
-      // Prevent updates or deletes by public users
-      allow update, delete: if false;
+      allow write: if false;
     }
   }
 }
