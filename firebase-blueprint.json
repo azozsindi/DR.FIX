@@ -24,65 +24,12 @@
         }
       },
       "required": ["name", "comment", "rating", "createdAt"]
-    },
-    "siteStats": {
-      "title": "Site Statistics",
-      "description": "Global statistics for the website.",
-      "type": "object",
-      "properties": {
-        "visitorCount": {
-          "type": "number",
-          "description": "Total number of visitors."
-        }
-      },
-      "required": ["visitorCount"]
-    },
-    "maintenanceRecord": {
-      "title": "Maintenance Record",
-      "description": "A record of a vehicle's maintenance service.",
-      "type": "object",
-      "properties": {
-        "customerPhone": {
-          "type": "string",
-          "description": "The phone number of the customer."
-        },
-        "carModel": {
-          "type": "string",
-          "description": "The model of the car."
-        },
-        "serviceDate": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the service was performed."
-        },
-        "serviceType": {
-          "type": "string",
-          "description": "The type of service (e.g., Oil Change, Engine Repair)."
-        },
-        "notes": {
-          "type": "string",
-          "description": "Additional details about the service."
-        },
-        "cost": {
-          "type": "number",
-          "description": "The cost of the service."
-        }
-      },
-      "required": ["customerPhone", "carModel", "serviceDate", "serviceType"]
     }
   },
   "firestore": {
     "/testimonials/{testimonialId}": {
       "schema": "testimonial",
       "description": "Collection of customer testimonials."
-    },
-    "/stats/global": {
-      "schema": "siteStats",
-      "description": "Global site statistics."
-    },
-    "/maintenance/{recordId}": {
-      "schema": "maintenanceRecord",
-      "description": "Collection of vehicle maintenance records."
     }
   }
 }

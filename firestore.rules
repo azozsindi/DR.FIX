@@ -2,35 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Helper functions
-    function isAdmin() {
-      // Since we are using a custom username/password login system client-side,
-      // we temporarily allow operations that were previously restricted to admin.
-      // In a production environment, this should be secured with Firebase Auth
-      // or a more robust backend authorization mechanism.
-      return true; 
-    }
-
     function isValidTestimonial(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() < 50 &&
              data.comment is string && data.comment.size() > 0 && data.comment.size() < 500 &&
              data.rating is number && data.rating >= 1 && data.rating <= 5 &&
-             data.createdAt is timestamp &&
-             (!('reply' in data) || (data.reply is string && data.reply.size() < 500));
-    }
-
-    function isValidMaintenance(data) {
-      return data.customerPhone is string && data.customerPhone.size() >= 9 &&
-             data.carModel is string && data.carModel.size() > 0 &&
-             data.serviceType is string && data.serviceType.size() > 0 &&
-             data.serviceDate is timestamp &&
-             (data.cost is number || !('cost' in data)) &&
-             (data.notes is string || !('notes' in data));
-    }
-
-    function isValidOffer(data) {
-      return data.title is string && data.title.size() > 0 &&
-             data.price is string && data.price.size() > 0 &&
-             data.features is list &&
              data.createdAt is timestamp;
     }
 
@@ -39,44 +14,11 @@ service cloud.firestore {
       allow read: if true;
       
       // Allow anyone to create a testimonial if it's valid
+      // In a production app, we might want to rate limit or use Auth
       allow create: if isValidTestimonial(request.resource.data);
       
-      // Allow admin to delete testimonials
-      allow update, delete: if isAdmin();
-    }
-
-    match /offers/{offerId} {
-      // Allow anyone to read offers
-      allow read: if true;
-      
-      // Only admin can manage offers
-      allow create: if isAdmin() && isValidOffer(request.resource.data);
-      allow update: if isAdmin() && isValidOffer(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /stats/global {
-      // Allow public to read stats
-      allow read: if true;
-      
-      // Allow public to increment visitorCount
-      // We only allow updating the visitorCount field by exactly 1
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['visitorCount']) &&
-                     request.resource.data.visitorCount == resource.data.visitorCount + 1;
-      
-      // Initial creation of stats doc
-      allow create: if true;
-    }
-
-    match /maintenance/{recordId} {
-      // Allow reading maintenance records if the requester knows the phone number
-      allow read: if true; 
-      
-      // Allow public to create maintenance records (from booking form)
-      // Or admin can create/update/delete
-      allow create: if (isValidMaintenance(request.resource.data)) || isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      // Prevent updates or deletes by public users
+      allow update, delete: if false;
     }
   }
 }
