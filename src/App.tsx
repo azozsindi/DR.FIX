@@ -86,9 +86,96 @@ interface BookingFormData {
   phone: string;
 }
 
+// --- Global Auth Guard ---
+const ADMIN_CREDENTIALS = {
+  username: 'DRFIX',
+  password: 'ADMIN2468'
+};
+
 // --- Components ---
 
-const Navbar = () => {
+const AdminLoginModal = ({ isOpen, onClose, onLogin }: { isOpen: boolean, onClose: () => void, onLogin: () => void }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+      onLogin();
+      onClose();
+      setError('');
+      setUsername('');
+      setPassword('');
+    } else {
+      setError('اسم المستخدم أو كلمة المرور غير صحيحة');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="glass-card p-8 w-full max-w-md border-brand-red/20 shadow-2xl"
+      >
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-display font-black italic uppercase">دخول <span className="text-brand-red">المسؤول</span></h2>
+          <p className="text-gray-400 text-sm mt-2">يرجى إدخال بيانات الاعتماد للوصول للوحة التحكم</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">اسم المستخدم</label>
+            <input 
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-brand-red transition-all"
+              placeholder="Username"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">كلمة المرور</label>
+            <input 
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-brand-red transition-all"
+              placeholder="Password"
+              required
+            />
+          </div>
+
+          {error && (
+            <p className="text-brand-red text-xs text-center font-bold">{error}</p>
+          )}
+
+          <div className="flex gap-4">
+            <button 
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 border border-white/10 rounded-xl font-bold hover:bg-white/5 transition-all"
+            >
+              إلغاء
+            </button>
+            <button 
+              type="submit"
+              className="flex-1 py-3 bg-brand-red text-white font-bold rounded-xl red-glow-hover transition-all"
+            >
+              دخول
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
+const Navbar = ({ onAdminClick }: { onAdminClick: () => void }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -137,6 +224,15 @@ const Navbar = () => {
               <a href="#process" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">كيف نعمل</a>
               <a href="#booking" onClick={() => setIsOpen(false)} className="hover:text-brand-red transition-colors">احجز موعداً</a>
               <a href="#contact" onClick={() => setIsOpen(false)} className="bg-brand-red px-6 py-3 rounded-xl text-center font-display">اتصل بنا</a>
+              <button 
+                onClick={async () => {
+                  setIsOpen(false);
+                  onAdminClick();
+                }}
+                className="text-[10px] text-gray-700 uppercase tracking-widest mt-4 self-center"
+              >
+                Admin Access
+              </button>
             </div>
           </motion.div>
         )}
@@ -514,13 +610,15 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
     const createRecord = async () => {
       try {
         await addDoc(collection(db, 'maintenance'), {
-          customerPhone: data.phone,
+          customerPhone: data.phone.trim(),
           carModel: `${data.carMake} ${data.carModel} ${data.carYear}`,
           serviceType: `حجز: ${serviceLabels[data.serviceType] || data.serviceType}`,
           notes: `طلب حجز تلقائي: ${data.description}`,
           cost: 0,
           serviceDate: serverTimestamp()
         });
+        // Save phone to localStorage for auto-search in history
+        localStorage.setItem('drfix_customer_phone', data.phone.trim());
       } catch (error) {
         console.error("Error creating auto record:", error);
       }
@@ -907,9 +1005,7 @@ interface MaintenanceRecord {
   cost?: number;
 }
 
-const AdminDashboard = () => {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+const AdminDashboard = ({ isAdmin, onLogout }: { isAdmin: boolean, onLogout: () => void }) => {
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -937,21 +1033,13 @@ const AdminDashboard = () => {
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setIsAdmin(u?.email?.toLowerCase() === 'azozsindi23@gmail.com');
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
     if (isAdmin) {
       // Maintenance
       const qM = query(collection(db, 'maintenance'), orderBy('serviceDate', 'desc'));
       const unsubM = onSnapshot(qM, (snapshot) => {
         const results: MaintenanceRecord[] = [];
         snapshot.forEach((doc) => {
-          results.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+          results.push({ id: doc.id, ...(doc.data() as any) } as MaintenanceRecord);
         });
         setRecords(results);
       });
@@ -961,7 +1049,7 @@ const AdminDashboard = () => {
       const unsubT = onSnapshot(qT, (snapshot) => {
         const results: TestimonialData[] = [];
         snapshot.forEach((doc) => {
-          results.push({ id: doc.id, ...doc.data() } as TestimonialData);
+          results.push({ id: doc.id, ...(doc.data() as any) } as TestimonialData);
         });
         setTestimonials(results);
       });
@@ -971,7 +1059,7 @@ const AdminDashboard = () => {
       const unsubO = onSnapshot(qO, (snapshot) => {
         const results: Offer[] = [];
         snapshot.forEach((doc) => {
-          results.push({ id: doc.id, ...doc.data() } as Offer);
+          results.push({ id: doc.id, ...(doc.data() as any) } as Offer);
         });
         setOffers(results);
       });
@@ -984,7 +1072,9 @@ const AdminDashboard = () => {
     }
   }, [isAdmin]);
 
-  const handleLogout = () => signOut(auth);
+  const handleLogout = () => {
+    onLogout();
+  };
 
   const handleAddRecord = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1048,8 +1138,23 @@ const AdminDashboard = () => {
     }
   };
 
-  if (!user || !isAdmin) {
-    return null;
+  if (!isAdmin) {
+    return (
+      <section id="admin" className="py-12 bg-brand-black border-t border-white/5">
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <button 
+            onClick={() => {
+              // This is handled by the parent App component
+              const event = new CustomEvent('openAdminLogin');
+              window.dispatchEvent(event);
+            }}
+            className="text-[10px] opacity-10 hover:opacity-30 transition-opacity uppercase tracking-widest"
+          >
+            .
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -1415,29 +1520,63 @@ const MaintenanceHistory = () => {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phone.trim()) return;
+  useEffect(() => {
+    const savedPhone = localStorage.getItem('drfix_customer_phone');
+    if (savedPhone) {
+      setPhone(savedPhone);
+      performSearch(savedPhone);
+    }
+  }, []);
+
+  const performSearch = async (phoneNumber: string) => {
+    if (!phoneNumber.trim()) return;
 
     setLoading(true);
     setHasSearched(true);
     try {
-      const q = query(
-        collection(db, 'maintenance'),
-        where('customerPhone', '==', phone.trim()),
-        orderBy('serviceDate', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      const results: MaintenanceRecord[] = [];
-      querySnapshot.forEach((doc) => {
-        results.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
-      });
-      setRecords(results);
+      // Try with orderBy first, if it fails (likely missing index), fallback to simple query
+      let q;
+      try {
+        q = query(
+          collection(db, 'maintenance'),
+          where('customerPhone', '==', phoneNumber.trim()),
+          orderBy('serviceDate', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        const results: MaintenanceRecord[] = [];
+        querySnapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as MaintenanceRecord);
+        });
+        setRecords(results);
+      } catch (indexError) {
+        console.warn("Composite index might be missing, falling back to simple query:", indexError);
+        q = query(
+          collection(db, 'maintenance'),
+          where('customerPhone', '==', phoneNumber.trim())
+        );
+        const querySnapshot = await getDocs(q);
+        const results: MaintenanceRecord[] = [];
+        querySnapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...(doc.data() as any) } as MaintenanceRecord);
+        });
+        // Sort manually if index is missing
+        results.sort((a, b) => {
+          const dateA = a.serviceDate?.toMillis?.() || 0;
+          const dateB = b.serviceDate?.toMillis?.() || 0;
+          return dateB - dateA;
+        });
+        setRecords(results);
+      }
     } catch (error) {
       console.error("Error fetching maintenance records:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    performSearch(phone);
   };
 
   return (
@@ -1592,7 +1731,7 @@ const FAQ = () => (
   </section>
 );
 
-const Footer = () => {
+const Footer = ({ onAdminClick }: { onAdminClick: () => void }) => {
   const [visitors, setVisitors] = useState<number | null>(null);
 
   useEffect(() => {
@@ -1710,15 +1849,8 @@ const Footer = () => {
     <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-gray-600 text-sm font-mono">
       <div>&copy; {new Date().getFullYear()} DR. FIX AUTO SERVICES. ALL RIGHTS RESERVED.</div>
       <button 
-        onClick={async () => {
-          const provider = new GoogleAuthProvider();
-          try {
-            await signInWithPopup(auth, provider);
-          } catch (error) {
-            console.error("Admin login error:", error);
-          }
-        }}
-        className="text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-tighter"
+        onClick={onAdminClick}
+        className="text-[10px] md:text-xs opacity-40 hover:opacity-100 transition-opacity uppercase tracking-widest py-2 px-4 border border-white/5 rounded-lg"
       >
         Admin Portal
       </button>
@@ -1824,6 +1956,29 @@ const Stats = () => (
 
 export default function App() {
   const [selectedService, setSelectedService] = useState<string>('');
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  useEffect(() => {
+    const savedAdmin = sessionStorage.getItem('drfix_admin_logged_in');
+    if (savedAdmin === 'true') {
+      setIsAdminLoggedIn(true);
+    }
+
+    const handleOpenLogin = () => setIsLoginModalOpen(true);
+    window.addEventListener('openAdminLogin', handleOpenLogin);
+    return () => window.removeEventListener('openAdminLogin', handleOpenLogin);
+  }, []);
+
+  const handleAdminLoginSuccess = () => {
+    setIsAdminLoggedIn(true);
+    sessionStorage.setItem('drfix_admin_logged_in', 'true');
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminLoggedIn(false);
+    sessionStorage.removeItem('drfix_admin_logged_in');
+  };
 
   const handleServiceSelect = (serviceType: string) => {
     setSelectedService(serviceType);
@@ -1835,7 +1990,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <Navbar />
+      <Navbar onAdminClick={() => setIsLoginModalOpen(true)} />
       <Hero />
       <Stats />
       <Services onServiceSelect={handleServiceSelect} />
@@ -1843,10 +1998,16 @@ export default function App() {
       <Process />
       <Testimonials />
       <MaintenanceHistory />
-      <AdminDashboard />
+      <AdminDashboard isAdmin={isAdminLoggedIn} onLogout={handleAdminLogout} />
       <BookingForm selectedService={selectedService} />
       <FAQ />
-      <Footer />
+      <Footer onAdminClick={() => setIsLoginModalOpen(true)} />
+
+      <AdminLoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+        onLogin={handleAdminLoginSuccess} 
+      />
     </div>
   );
 }
