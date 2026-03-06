@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Wrench, 
@@ -11,8 +11,6 @@ import {
   Car, 
   Shield, 
   Cpu, 
-  Camera, 
-  Upload, 
   Phone, 
   MapPin, 
   Clock,
@@ -25,13 +23,32 @@ import {
   MessageCircle,
   Star,
   HelpCircle,
-  Tag
+  Tag,
+  Camera,
+  Send,
+  Loader2
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { useDropzone } from 'react-dropzone';
 import { cn } from './lib/utils';
+import { db } from './firebase';
+import { 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  serverTimestamp,
+  Timestamp 
+} from 'firebase/firestore';
 
 // --- Types ---
+interface TestimonialData {
+  id?: string;
+  name: string;
+  comment: string;
+  rating: number;
+  createdAt: Timestamp | any;
+}
 interface BookingFormData {
   carMake: string;
   carModel: string;
@@ -444,8 +461,8 @@ const Offers = () => (
 );
 
 const BookingForm = ({ selectedService }: { selectedService?: string }) => {
-  const [files, setFiles] = useState<File[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<BookingFormData>();
 
   React.useEffect(() => {
@@ -454,24 +471,9 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
     }
   }, [selectedService, setValue]);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFiles(prev => [...prev, ...acceptedFiles]);
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
-    onDrop,
-    accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.gif'],
-      'video/*': ['.mp4', '.mov', '.avi']
-    },
-    multiple: true
-  } as any);
-
-  const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
   const onSubmit = (data: BookingFormData) => {
+    setIsLoading(true);
+
     const serviceLabels: Record<string, string> = {
       'home-service': 'خدمة من الباب للباب',
       'mechanic': 'ميكانيكا',
@@ -494,23 +496,21 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
       `*سنة الصنع:* ${data.carYear}\n` +
       `*نوع الخدمة:* ${serviceLabels[data.serviceType] || data.serviceType}\n` +
       `*وصف المشكلة:* ${data.description}\n` +
-      `*رقم الجوال:* ${data.phone}\n\n` +
-      (files.length > 0 ? `_ملاحظة للمهندس: العميل أرفق ${files.length} صور في الموقع، فضلاً اطلبها منه في حال لم يرسلها_` : '');
+      `*رقم الجوال:* ${data.phone}`;
 
-    // If files are present, show a friendly reminder before redirecting
-    if (files.length > 0) {
-      alert("سيتم فتح واتساب الآن للتواصل مع المهندس. فضلاً لا تنسَ إرفاق الصور/الفيديو التي اخترتها من الاستوديو داخل المحادثة.");
-    }
-
-    const whatsappUrl = `https://wa.me/966546870807?text=${encodeURIComponent(messageText)}`;
-    window.open(whatsappUrl, '_blank');
-    
-    setIsSubmitted(true);
+    // Simulate a loading process for the tire animation
     setTimeout(() => {
-      setIsSubmitted(false);
-      reset();
-      setFiles([]);
-    }, 5000);
+      setIsLoading(false);
+      
+      const whatsappUrl = `https://wa.me/966546870807?text=${encodeURIComponent(messageText)}`;
+      window.open(whatsappUrl, '_blank');
+      
+      setIsSubmitted(true);
+      setTimeout(() => {
+        setIsSubmitted(false);
+        reset();
+      }, 5000);
+    }, 2000);
   };
 
   return (
@@ -588,47 +588,12 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
               />
             </div>
 
-            <div className="space-y-4">
-              <label className="text-xs md:text-sm font-display font-bold text-gray-400 uppercase tracking-wider">رفع الصور والفيديو</label>
-              <div 
-                {...getRootProps()} 
-                className={cn(
-                  "border-2 border-dashed rounded-2xl p-6 md:p-8 text-center transition-all cursor-pointer",
-                  isDragActive ? "border-brand-red bg-brand-red/5" : "border-white/10 hover:border-brand-red/50"
-                )}
-              >
-                <input {...getInputProps()} />
-                <Upload className="w-8 h-8 md:w-10 md:h-10 text-brand-red mx-auto mb-4" />
-                <p className="text-base md:text-lg font-bold mb-1">اسحب الملفات هنا أو انقر للاختيار</p>
-                <p className="text-xs md:text-sm text-gray-500">يمكنك رفع صور أو فيديوهات توضح المشكلة</p>
-              </div>
-
-              {files.length > 0 && (
-                <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4 mt-4">
-                  {files.map((file, index) => (
-                    <div key={index} className="relative group rounded-lg overflow-hidden border border-white/10 aspect-square bg-white/5">
-                      {file.type.startsWith('image/') ? (
-                        <img 
-                          src={URL.createObjectURL(file)} 
-                          alt="preview" 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Camera className="w-6 h-6 md:w-8 md:h-8 text-gray-500" />
-                        </div>
-                      )}
-                      <button 
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        className="absolute top-1 right-1 bg-brand-red p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="w-3 h-3 md:w-4 md:h-4 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="p-4 rounded-xl bg-brand-red/5 border border-brand-red/20 flex items-start gap-3">
+              <Camera className="w-5 h-5 text-brand-red shrink-0 mt-0.5" />
+              <p className="text-xs md:text-sm text-gray-400 leading-relaxed">
+                <strong className="text-brand-red block mb-1">ملاحظة:</strong>
+                يمكنك إرسال الصور ومقاطع الفيديو التي توضح المشكلة مباشرة عبر الواتساب بعد الضغط على زر تأكيد الحجز.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -651,6 +616,32 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
           </form>
 
           <AnimatePresence>
+            {isLoading && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-brand-black/95 flex flex-col items-center justify-center text-center p-8 z-50 rounded-2xl"
+              >
+                <motion.div 
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="w-24 h-24 text-brand-red mb-6"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="3" />
+                    <line x1="12" y1="2" x2="12" y2="22" />
+                    <line x1="2" y1="12" x2="22" y2="12" />
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                    <line x1="4.93" y1="19.07" x2="19.07" y2="4.93" />
+                  </svg>
+                </motion.div>
+                <h3 className="text-2xl font-black italic">جاري معالجة طلبك...</h3>
+                <p className="text-gray-400 mt-2">لحظات ونفتح لك الواتساب</p>
+              </motion.div>
+            )}
+
             {isSubmitted && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -698,63 +689,174 @@ const TestimonialCard = ({ name, comment, rating }: { name: string, comment: str
   </motion.div>
 );
 
-const Testimonials = () => (
-  <section id="testimonials" className="py-24 bg-brand-dark relative overflow-hidden">
-    <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
-      <div className="text-center mb-16">
-        <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">ماذا يقول <span className="text-brand-red">عملاؤنا؟</span></h2>
-        <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
-      </div>
+const Testimonials = () => {
+  const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-      <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
-        <div className="flex gap-6 md:gap-8">
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <TestimonialCard 
-              name="أحمد" 
-              comment="خدمة ممتازة جداً، استلموا السيارة من البيت ورجعوها في نفس اليوم نظيفة ومصلحة. المهندس محمد قمة في الأخلاق والأمانة." 
-              rating={5} 
-            />
+  const staticTestimonials = [
+    { name: "أحمد", comment: "خدمة ممتازة جداً، استلموا السيارة من البيت ورجعوها في نفس اليوم نظيفة ومصلحة. المهندس محمد قمة في الأخلاق والأمانة.", rating: 5 },
+    { name: "فارس", comment: "عجبني إنه يغسل السيارة قبل لا يجيبها ههههههههههههههههه، صراحة خدمة فندقية مو بس صيانة! الله يبارك لكم.", rating: 5 },
+    { name: "خالد", comment: "أفضل مركز صيانة تعاملت معه في جدة. دقة في المواعيد وشغل احترافي وسعر منافس جداً مقارنة بالوكالة.", rating: 5 },
+    { name: "مرام", comment: "وفروا علي عناء الذهاب للورشة، الخدمة من الباب للباب مريحة جداً. شكراً دكتور فيكس على الاحترافية.", rating: 5 },
+    { name: "سلطان", comment: "المهندس محمد سندي فنان، صلح لي مشكلة في الكهرباء عجزت عنها الوكالة وبسعر معقول جداً.", rating: 5 },
+    { name: "خلود", comment: "أفضل شيء إنهم يجونك لين البيت، ما عاد أشيل هم الورش والزحمة. تعامل راقي جداً.", rating: 5 }
+  ];
+
+  useEffect(() => {
+    const q = query(collection(db, 'testimonials'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TestimonialData[];
+      setTestimonials(data);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching testimonials:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const displayData = testimonials.length > 0 ? testimonials : staticTestimonials;
+
+  return (
+    <section id="testimonials" className="py-24 bg-brand-dark relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">ماذا يقول <span className="text-brand-red">عملاؤنا؟</span></h2>
+          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-12 h-12 text-brand-red animate-spin" />
           </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <TestimonialCard 
-              name="فارس" 
-              comment="عجبني إنه يغسل السيارة قبل لا يجيبها ههههههههههههههههه، صراحة خدمة فندقية مو بس صيانة! الله يبارك لكم." 
-              rating={5} 
-            />
+        ) : (
+          <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
+            <div className="flex gap-6 md:gap-8">
+              {displayData.map((t, i) => (
+                <div key={t.id || i} className="min-w-[280px] md:min-w-[350px] snap-center">
+                  <TestimonialCard 
+                    name={t.name} 
+                    comment={t.comment} 
+                    rating={t.rating} 
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <TestimonialCard 
-              name="خالد" 
-              comment="أفضل مركز صيانة تعاملت معه في جدة. دقة في المواعيد وشغل احترافي وسعر منافس جداً مقارنة بالوكالة." 
-              rating={5} 
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <TestimonialCard 
-              name="مرام" 
-              comment="وفروا علي عناء الذهاب للورشة، الخدمة من الباب للباب مريحة جداً. شكراً دكتور فيكس على الاحترافية." 
-              rating={5} 
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <TestimonialCard 
-              name="سلطان" 
-              comment="المهندس محمد سندي فنان، صلح لي مشكلة في الكهرباء عجزت عنها الوكالة وبسعر معقول جداً." 
-              rating={5} 
-            />
-          </div>
-          <div className="min-w-[280px] md:min-w-[350px] snap-center">
-            <TestimonialCard 
-              name="خلود" 
-              comment="أفضل شيء إنهم يجونك لين البيت، ما عاد أشيل هم الورش والزحمة. تعامل راقي جداً." 
-              rating={5} 
-            />
-          </div>
+        )}
+
+        <div className="mt-16 max-w-2xl mx-auto">
+          <AddTestimonialForm />
         </div>
       </div>
+    </section>
+  );
+};
+
+const AddTestimonialForm = () => {
+  const [rating, setRating] = useState(5);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<{ name: string, comment: string }>();
+
+  const onSubmit = async (data: { name: string, comment: string }) => {
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'testimonials'), {
+        name: data.name,
+        comment: data.comment,
+        rating: rating,
+        createdAt: serverTimestamp()
+      });
+      setIsSuccess(true);
+      reset();
+      setRating(5);
+      setTimeout(() => setIsSuccess(false), 3000);
+    } catch (error) {
+      console.error("Error adding testimonial:", error);
+      alert("حدث خطأ أثناء إضافة التعليق. يرجى المحاولة مرة أخرى.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="glass-card p-8 border-brand-red/10">
+      <h3 className="text-2xl font-display font-black mb-6 italic text-center">أضف <span className="text-brand-red">رأيك</span></h3>
+      
+      {isSuccess ? (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center py-8"
+        >
+          <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-8 h-8 text-green-500" />
+          </div>
+          <p className="text-xl font-bold">شكراً لمشاركتنا رأيك!</p>
+        </motion.div>
+      ) : (
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="flex justify-center gap-2 mb-4">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setRating(star)}
+                className="focus:outline-none transition-transform hover:scale-110"
+              >
+                <Star 
+                  className={cn(
+                    "w-8 h-8", 
+                    star <= rating ? "text-yellow-500 fill-yellow-500" : "text-gray-600"
+                  )} 
+                />
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            <input 
+              {...register('name', { required: true })}
+              placeholder="اسمك"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red focus:outline-none transition-all"
+            />
+            {errors.name && <span className="text-brand-red text-xs">يرجى إدخال الاسم</span>}
+          </div>
+
+          <div className="space-y-2">
+            <textarea 
+              {...register('comment', { required: true })}
+              rows={3}
+              placeholder="اكتب تعليقك هنا..."
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red focus:outline-none transition-all resize-none"
+            />
+            {errors.comment && <span className="text-brand-red text-xs">يرجى إدخال التعليق</span>}
+          </div>
+
+          <button 
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-3 bg-brand-red text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-red-700 transition-colors disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                إرسال التعليق
+                <Send className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+      )}
     </div>
-  </section>
-);
+  );
+};
 
 const FAQItem = ({ question, answer }: { question: string, answer: string }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -938,6 +1040,46 @@ const Process = () => (
   </section>
 );
 
+const Stats = () => (
+  <section className="py-12 bg-brand-black border-y border-white/5">
+    <div className="max-w-7xl mx-auto px-4 md:px-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center"
+        >
+          <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">+5000</div>
+          <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">سيارة تم صيانتها</div>
+        </motion.div>
+        
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.1 }}
+          className="text-center"
+        >
+          <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">100%</div>
+          <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">غسيل مجاني مع كل صيانة</div>
+        </motion.div>
+        
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2 }}
+          className="text-center"
+        >
+          <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">+10</div>
+          <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">سنوات خبرة للمهندسين</div>
+        </motion.div>
+      </div>
+    </div>
+  </section>
+);
+
 export default function App() {
   const [selectedService, setSelectedService] = useState<string>('');
 
@@ -953,6 +1095,7 @@ export default function App() {
     <div className="min-h-screen">
       <Navbar />
       <Hero />
+      <Stats />
       <Services onServiceSelect={handleServiceSelect} />
       <Offers />
       <Process />

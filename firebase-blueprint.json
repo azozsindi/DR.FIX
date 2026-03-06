@@ -1,0 +1,35 @@
+{
+  "entities": {
+    "testimonial": {
+      "title": "Testimonial",
+      "description": "A customer review or comment about the service.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the customer."
+        },
+        "comment": {
+          "type": "string",
+          "description": "The review text."
+        },
+        "rating": {
+          "type": "number",
+          "description": "The star rating (1-5)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the review was posted."
+        }
+      },
+      "required": ["name", "comment", "rating", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/testimonials/{testimonialId}": {
+      "schema": "testimonial",
+      "description": "Collection of customer testimonials."
+    }
+  }
+}
