@@ -26,7 +26,18 @@ import {
   Tag,
   Camera,
   Send,
-  Loader2
+  Loader2,
+  History,
+  Search,
+  FileText,
+  Calendar,
+  Settings,
+  LogOut,
+  LogIn,
+  Trash2,
+  PlusCircle,
+  User,
+  MessageSquare,
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { cn } from './lib/utils';
@@ -38,8 +49,24 @@ import {
   query, 
   orderBy, 
   serverTimestamp,
-  Timestamp 
+  Timestamp,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  increment,
+  where,
+  getDocs,
+  deleteDoc 
 } from 'firebase/firestore';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signOut,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { auth } from './firebase';
 
 // --- Types ---
 interface TestimonialData {
@@ -47,6 +74,7 @@ interface TestimonialData {
   name: string;
   comment: string;
   rating: number;
+  reply?: string;
   createdAt: Timestamp | any;
 }
 interface BookingFormData {
@@ -368,97 +396,81 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
   </section>
 );
 
-const Offers = () => (
-  <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
-    <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
-      <div className="text-center mb-16">
-        <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">عروض <span className="text-brand-red">خاصة</span></h2>
-        <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
-      </div>
+interface Offer {
+  id: string;
+  title: string;
+  price: string;
+  subtitle?: string;
+  features: string[];
+  icon: 'tag' | 'zap';
+  createdAt: Timestamp;
+}
 
-      <div className="grid md:grid-cols-2 gap-8">
-        <motion.div 
-          whileHover={{ y: -10 }}
-          className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
-        >
-          <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
-              <Tag className="w-6 h-6 text-brand-red" />
-            </div>
-            <div className="text-left">
-              <span className="text-4xl font-display font-black text-brand-red">مجاني</span>
-              <div className="text-[10px] text-brand-red font-bold uppercase mt-1">99 ريال في حال عدم الإصلاح</div>
-            </div>
-          </div>
-          <h3 className="text-2xl font-display font-black mb-4 italic">كشف شامل على السيارة</h3>
-          <ul className="space-y-3 text-gray-400 mb-8">
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              للسيارات 4 سلندر فقط
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              لا يشمل فحص الكهرباء
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              الكشف مجاني عند الإصلاح لدينا
-            </li>
-          </ul>
-          <a href="#booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
-            احجز هذا العرض الآن
-            <ChevronDown className="w-4 h-4 -rotate-90" />
-          </a>
-        </motion.div>
+const Offers = () => {
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(true);
 
-        <motion.div 
-          whileHover={{ y: -10 }}
-          className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
-        >
-          <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
-              <Zap className="w-6 h-6 text-brand-red" />
-            </div>
-            <div className="text-left">
-              <span className="text-4xl font-display font-black text-brand-red">298</span>
-              <span className="text-sm font-bold text-gray-400 mr-1">ريال</span>
-              <div className="text-[10px] text-brand-red font-bold uppercase mt-1 text-left">للسيارات 4 سلندر</div>
-            </div>
-          </div>
-          <h3 className="text-2xl font-display font-black mb-4 italic">باقة الصيانة المتكاملة</h3>
-          <ul className="space-y-3 text-gray-400 mb-8">
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تغيير بواجي
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تنظيف بخاخات
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تنظيف بوابة (Throttle)
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تغيير طرمبة بنزين
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-brand-red" />
-              تشييك شامل على المكيف
-            </li>
-          </ul>
-          <a href="#booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
-            احجز هذا العرض الآن
-            <ChevronDown className="w-4 h-4 -rotate-90" />
-          </a>
-        </motion.div>
+  useEffect(() => {
+    const q = query(collection(db, 'offers'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const results: Offer[] = [];
+      snapshot.forEach((doc) => {
+        results.push({ id: doc.id, ...doc.data() } as Offer);
+      });
+      setOffers(results);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (loading) return null;
+  if (offers.length === 0) return null;
+
+  return (
+    <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">عروض <span className="text-brand-red">خاصة</span></h2>
+          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {offers.map((offer) => (
+            <motion.div 
+              key={offer.id}
+              whileHover={{ y: -10 }}
+              className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
+              <div className="flex justify-between items-start mb-6">
+                <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
+                  {offer.icon === 'zap' ? <Zap className="w-6 h-6 text-brand-red" /> : <Tag className="w-6 h-6 text-brand-red" />}
+                </div>
+                <div className="text-left">
+                  <span className="text-4xl font-display font-black text-brand-red">{offer.price}</span>
+                  {offer.subtitle && <div className="text-[10px] text-brand-red font-bold uppercase mt-1">{offer.subtitle}</div>}
+                </div>
+              </div>
+              <h3 className="text-2xl font-display font-black mb-4 italic">{offer.title}</h3>
+              <ul className="space-y-3 text-gray-400 mb-8">
+                {offer.features.map((feature, idx) => (
+                  <li key={idx} className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-brand-red" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <a href="#booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
+                احجز هذا العرض الآن
+                <ChevronDown className="w-4 h-4 -rotate-90" />
+              </a>
+            </motion.div>
+          ))}
+        </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 const BookingForm = ({ selectedService }: { selectedService?: string }) => {
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -497,6 +509,24 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
       `*نوع الخدمة:* ${serviceLabels[data.serviceType] || data.serviceType}\n` +
       `*وصف المشكلة:* ${data.description}\n` +
       `*رقم الجوال:* ${data.phone}`;
+
+    // Create automatic maintenance record
+    const createRecord = async () => {
+      try {
+        await addDoc(collection(db, 'maintenance'), {
+          customerPhone: data.phone,
+          carModel: `${data.carMake} ${data.carModel} ${data.carYear}`,
+          serviceType: `حجز: ${serviceLabels[data.serviceType] || data.serviceType}`,
+          notes: `طلب حجز تلقائي: ${data.description}`,
+          cost: 0,
+          serviceDate: serverTimestamp()
+        });
+      } catch (error) {
+        console.error("Error creating auto record:", error);
+      }
+    };
+
+    createRecord();
 
     // Simulate a loading process for the tire animation
     setTimeout(() => {
@@ -669,17 +699,25 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
   );
 };
 
-const TestimonialCard = ({ name, comment, rating }: { name: string, comment: string, rating: number }) => (
+const TestimonialCard = ({ name, comment, rating, reply }: { name: string, comment: string, rating: number, reply?: string }) => (
   <motion.div 
     whileHover={{ y: -5 }}
-    className="glass-card p-6 border-white/5 hover:border-brand-red/30 transition-all shadow-xl"
+    className="glass-card p-6 border-white/5 hover:border-brand-red/30 transition-all shadow-xl h-full flex flex-col"
   >
     <div className="flex gap-1 mb-4">
       {[...Array(5)].map((_, i) => (
         <Star key={i} className={cn("w-4 h-4", i < rating ? "text-yellow-500 fill-yellow-500" : "text-gray-600")} />
       ))}
     </div>
-    <p className="text-gray-300 italic mb-6 leading-relaxed">"{comment}"</p>
+    <p className="text-gray-300 italic mb-6 leading-relaxed flex-grow">"{comment}"</p>
+    
+    {reply && (
+      <div className="mb-6 bg-brand-red/5 border-r-2 border-brand-red p-4 rounded-l-xl">
+        <div className="text-[10px] font-bold text-brand-red uppercase tracking-widest mb-1">رد الإدارة</div>
+        <p className="text-gray-400 text-sm italic">{reply}</p>
+      </div>
+    )}
+
     <div className="flex items-center gap-3">
       <div className="w-10 h-10 bg-brand-red/20 rounded-full flex items-center justify-center font-bold text-brand-red">
         {name[0]}
@@ -742,6 +780,7 @@ const Testimonials = () => {
                     name={t.name} 
                     comment={t.comment} 
                     rating={t.rating} 
+                    reply={(t as any).reply}
                   />
                 </div>
               ))}
@@ -858,6 +897,648 @@ const AddTestimonialForm = () => {
   );
 };
 
+interface MaintenanceRecord {
+  id: string;
+  customerPhone: string;
+  carModel: string;
+  serviceDate: Timestamp;
+  serviceType: string;
+  notes?: string;
+  cost?: number;
+}
+
+const AdminDashboard = () => {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [activeTab, setActiveTab] = useState<'maintenance' | 'testimonials' | 'offers'>('maintenance');
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+
+  // Form States
+  const [formData, setFormData] = useState({
+    customerPhone: '',
+    carModel: '',
+    serviceType: '',
+    notes: '',
+    cost: ''
+  });
+
+  const [offerForm, setOfferForm] = useState({
+    title: '',
+    price: '',
+    subtitle: '',
+    features: '',
+    icon: 'tag' as 'tag' | 'zap'
+  });
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsAdmin(u?.email?.toLowerCase() === 'azozsindi23@gmail.com');
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) {
+      // Maintenance
+      const qM = query(collection(db, 'maintenance'), orderBy('serviceDate', 'desc'));
+      const unsubM = onSnapshot(qM, (snapshot) => {
+        const results: MaintenanceRecord[] = [];
+        snapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+        });
+        setRecords(results);
+      });
+
+      // Testimonials
+      const qT = query(collection(db, 'testimonials'), orderBy('createdAt', 'desc'));
+      const unsubT = onSnapshot(qT, (snapshot) => {
+        const results: TestimonialData[] = [];
+        snapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...doc.data() } as TestimonialData);
+        });
+        setTestimonials(results);
+      });
+
+      // Offers
+      const qO = query(collection(db, 'offers'), orderBy('createdAt', 'desc'));
+      const unsubO = onSnapshot(qO, (snapshot) => {
+        const results: Offer[] = [];
+        snapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...doc.data() } as Offer);
+        });
+        setOffers(results);
+      });
+
+      return () => {
+        unsubM();
+        unsubT();
+        unsubO();
+      };
+    }
+  }, [isAdmin]);
+
+  const handleLogout = () => signOut(auth);
+
+  const handleAddRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'maintenance'), {
+        ...formData,
+        cost: Number(formData.cost),
+        serviceDate: serverTimestamp()
+      });
+      setFormData({ customerPhone: '', carModel: '', serviceType: '', notes: '', cost: '' });
+      setIsAdding(false);
+    } catch (error) {
+      console.error("Error adding record:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'offers'), {
+        ...offerForm,
+        features: offerForm.features.split('\n').filter(f => f.trim()),
+        createdAt: serverTimestamp()
+      });
+      setOfferForm({ title: '', price: '', subtitle: '', features: '', icon: 'tag' });
+      setIsAdding(false);
+    } catch (error) {
+      console.error("Error adding offer:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (collectionName: string, id: string) => {
+    if (window.confirm('هل أنت متأكد من الحذف؟')) {
+      try {
+        await deleteDoc(doc(db, collectionName, id));
+      } catch (error) {
+        console.error(`Error deleting from ${collectionName}:`, error);
+      }
+    }
+  };
+
+  const handleReply = async (testimonialId: string) => {
+    if (!replyText.trim()) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'testimonials', testimonialId), {
+        reply: replyText
+      });
+      setReplyingTo(null);
+      setReplyText('');
+    } catch (error) {
+      console.error("Error replying to testimonial:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!user || !isAdmin) {
+    return null;
+  }
+
+  return (
+    <section id="admin" className="py-24 bg-brand-black border-t border-white/5">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="flex flex-wrap justify-between items-center gap-6 mb-12">
+          <div>
+            <h2 className="text-3xl font-display font-black italic mb-2">لوحة تحكم <span className="text-brand-red">المدير</span></h2>
+            <p className="text-gray-500">إدارة السجلات، التعليقات، والعروض</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsAdding(!isAdding)}
+              className="flex items-center gap-2 px-6 py-3 bg-brand-red rounded-xl font-bold italic hover:bg-red-700 transition-all"
+            >
+              <PlusCircle className="w-5 h-5" />
+              إضافة جديد
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-gray-400"
+              title="تسجيل الخروج"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-4 mb-8 border-b border-white/5 pb-4">
+          <button 
+            onClick={() => setActiveTab('maintenance')}
+            className={cn("px-4 py-2 rounded-lg font-bold transition-all", activeTab === 'maintenance' ? "bg-brand-red text-white" : "text-gray-500 hover:text-white")}
+          >
+            السجلات
+          </button>
+          <button 
+            onClick={() => setActiveTab('testimonials')}
+            className={cn("px-4 py-2 rounded-lg font-bold transition-all", activeTab === 'testimonials' ? "bg-brand-red text-white" : "text-gray-500 hover:text-white")}
+          >
+            التعليقات
+          </button>
+          <button 
+            onClick={() => setActiveTab('offers')}
+            className={cn("px-4 py-2 rounded-lg font-bold transition-all", activeTab === 'offers' ? "bg-brand-red text-white" : "text-gray-500 hover:text-white")}
+          >
+            العروض
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {isAdding && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden mb-12"
+            >
+              {activeTab === 'maintenance' && (
+                <form onSubmit={handleAddRecord} className="glass-card p-8 border-brand-red/20 grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">رقم جوال العميل</label>
+                    <input 
+                      required
+                      value={formData.customerPhone}
+                      onChange={e => setFormData({...formData, customerPhone: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none"
+                      placeholder="05XXXXXXXX"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">نوع السيارة</label>
+                    <input 
+                      required
+                      value={formData.carModel}
+                      onChange={e => setFormData({...formData, carModel: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none"
+                      placeholder="مثلاً: تويوتا كامري 2022"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">نوع الخدمة</label>
+                    <input 
+                      required
+                      value={formData.serviceType}
+                      onChange={e => setFormData({...formData, serviceType: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none"
+                      placeholder="مثلاً: تغيير زيت وفلتر"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">التكلفة (ريال)</label>
+                    <input 
+                      type="number"
+                      value={formData.cost}
+                      onChange={e => setFormData({...formData, cost: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">ملاحظات إضافية</label>
+                    <textarea 
+                      value={formData.notes}
+                      onChange={e => setFormData({...formData, notes: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none resize-none"
+                      rows={3}
+                      placeholder="تفاصيل الصيانة..."
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex gap-4">
+                    <button 
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-brand-red py-4 rounded-xl font-display font-black italic hover:bg-red-700 transition-all disabled:opacity-50"
+                    >
+                      {loading ? 'جاري الحفظ...' : 'حفظ السجل'}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setIsAdding(false)}
+                      className="px-8 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {activeTab === 'offers' && (
+                <form onSubmit={handleAddOffer} className="glass-card p-8 border-brand-red/20 grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">عنوان العرض</label>
+                    <input 
+                      required
+                      value={offerForm.title}
+                      onChange={e => setOfferForm({...offerForm, title: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none"
+                      placeholder="مثلاً: كشف شامل مجاني"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">السعر</label>
+                    <input 
+                      required
+                      value={offerForm.price}
+                      onChange={e => setOfferForm({...offerForm, price: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none"
+                      placeholder="مثلاً: 298 أو مجاني"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">نص فرعي (اختياري)</label>
+                    <input 
+                      value={offerForm.subtitle}
+                      onChange={e => setOfferForm({...offerForm, subtitle: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none"
+                      placeholder="مثلاً: للسيارات 4 سلندر"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">الأيقونة</label>
+                    <select 
+                      value={offerForm.icon}
+                      onChange={e => setOfferForm({...offerForm, icon: e.target.value as 'tag' | 'zap'})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none"
+                    >
+                      <option value="tag">تاق (Tag)</option>
+                      <option value="zap">برق (Zap)</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">المميزات (كل سطر ميزة)</label>
+                    <textarea 
+                      required
+                      value={offerForm.features}
+                      onChange={e => setOfferForm({...offerForm, features: e.target.value})}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none resize-none"
+                      rows={5}
+                      placeholder="ميزة 1&#10;ميزة 2&#10;ميزة 3"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex gap-4">
+                    <button 
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-brand-red py-4 rounded-xl font-display font-black italic hover:bg-red-700 transition-all disabled:opacity-50"
+                    >
+                      {loading ? 'جاري الحفظ...' : 'حفظ العرض'}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setIsAdding(false)}
+                      className="px-8 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="space-y-4">
+          {activeTab === 'maintenance' && (
+            records.length > 0 ? (
+              records.map((record) => (
+                <div key={record.id} className="p-6 rounded-2xl bg-white/5 border border-white/10 flex flex-wrap justify-between items-center gap-6">
+                  <div className="flex items-center gap-6">
+                    <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center border border-white/10 text-brand-red">
+                      <Car className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-lg">{record.carModel}</div>
+                      <div className="text-gray-500 text-sm flex items-center gap-4">
+                        <span className="flex items-center gap-1"><User className="w-3 h-3" /> {record.customerPhone}</span>
+                        <span className="flex items-center gap-1"><Wrench className="w-3 h-3" /> {record.serviceType}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right hidden sm:block">
+                      <div className="text-brand-red font-bold">{record.cost} ريال</div>
+                      <div className="text-gray-600 text-xs">
+                        {record.serviceDate?.toDate().toLocaleDateString('ar-SA')}
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleDelete('maintenance', record.id)}
+                      className="p-3 text-gray-600 hover:text-brand-red transition-colors"
+                      title="حذف"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12 border border-dashed border-white/10 rounded-2xl text-gray-600">
+                لا توجد سجلات حالياً.
+              </div>
+            )
+          )}
+
+          {activeTab === 'testimonials' && (
+            testimonials.length > 0 ? (
+              testimonials.map((t) => (
+                <div key={t.id} className="flex flex-col gap-4">
+                  <div className="p-6 rounded-2xl bg-white/5 border border-white/10 flex flex-wrap justify-between items-center gap-6">
+                    <div className="flex items-center gap-6">
+                      <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center text-brand-red">
+                        <MessageSquare className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-lg">{t.name}</div>
+                        <div className="text-gray-500 text-sm max-w-md line-clamp-1">{t.comment}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="flex gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className={cn("w-3 h-3", i < t.rating ? "fill-brand-red text-brand-red" : "text-gray-700")} />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setReplyingTo(replyingTo === t.id ? null : t.id!);
+                            setReplyText(t.reply || '');
+                          }}
+                          className={cn(
+                            "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                            t.reply ? "bg-green-500/10 text-green-500 border border-green-500/20" : "bg-white/5 text-gray-400 border border-white/10 hover:text-white"
+                          )}
+                        >
+                          {t.reply ? 'تعديل الرد' : 'إضافة رد'}
+                        </button>
+                        <button 
+                          onClick={() => handleDelete('testimonials', t.id!)}
+                          className="p-3 text-gray-600 hover:text-brand-red transition-colors"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <AnimatePresence>
+                    {replyingTo === t.id && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden px-6 pb-6"
+                      >
+                        <div className="flex gap-4">
+                          <textarea 
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder="اكتب ردك هنا..."
+                            className="flex-grow bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red outline-none resize-none text-sm"
+                            rows={2}
+                          />
+                          <button 
+                            onClick={() => handleReply(t.id!)}
+                            disabled={loading}
+                            className="px-6 bg-brand-red rounded-xl font-bold italic hover:bg-red-700 transition-all disabled:opacity-50 text-sm"
+                          >
+                            حفظ
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12 border border-dashed border-white/10 rounded-2xl text-gray-600">
+                لا توجد تعليقات حالياً.
+              </div>
+            )
+          )}
+
+          {activeTab === 'offers' && (
+            offers.length > 0 ? (
+              offers.map((o) => (
+                <div key={o.id} className="p-6 rounded-2xl bg-white/5 border border-white/10 flex flex-wrap justify-between items-center gap-6">
+                  <div className="flex items-center gap-6">
+                    <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center text-brand-red">
+                      {o.icon === 'zap' ? <Zap className="w-6 h-6" /> : <Tag className="w-6 h-6" />}
+                    </div>
+                    <div>
+                      <div className="font-bold text-lg">{o.title}</div>
+                      <div className="text-brand-red text-sm font-bold">{o.price} ريال</div>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleDelete('offers', o.id)}
+                    className="p-3 text-gray-600 hover:text-brand-red transition-colors"
+                    title="حذف"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12 border border-dashed border-white/10 rounded-2xl text-gray-600">
+                لا توجد عروض حالياً.
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const MaintenanceHistory = () => {
+  const [phone, setPhone] = useState('');
+  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone.trim()) return;
+
+    setLoading(true);
+    setHasSearched(true);
+    try {
+      const q = query(
+        collection(db, 'maintenance'),
+        where('customerPhone', '==', phone.trim()),
+        orderBy('serviceDate', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const results: MaintenanceRecord[] = [];
+      querySnapshot.forEach((doc) => {
+        results.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+      });
+      setRecords(results);
+    } catch (error) {
+      console.error("Error fetching maintenance records:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section id="history" className="py-24 bg-black relative overflow-hidden">
+      <div className="max-w-4xl mx-auto px-6 relative z-10">
+        <div className="text-center mb-16">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.5 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-red/10 border border-brand-red/20 text-brand-red text-xs font-bold uppercase tracking-widest mb-6"
+          >
+            <History className="w-3 h-3" />
+            سجل الصيانة
+          </motion.div>
+          <h2 className="text-4xl md:text-6xl font-display font-black mb-6 italic tracking-tighter">
+            تابع <span className="text-brand-red">تاريخ صيانة</span> سيارتك
+          </h2>
+          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+            أدخل رقم جوالك المسجل لدينا لاستعراض كافة عمليات الصيانة السابقة التي تمت لسيارتك في مركزنا.
+          </p>
+        </div>
+
+        <div className="glass-card p-8 md:p-12 border-white/5 shadow-2xl relative overflow-hidden">
+          <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4 mb-12">
+            <div className="flex-1 relative">
+              <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <input 
+                type="tel" 
+                placeholder="أدخل رقم الجوال (مثال: 05XXXXXXXX)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full bg-black/50 border border-white/10 rounded-xl py-4 pr-12 pl-4 text-white focus:border-brand-red outline-none transition-all font-mono"
+                required
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={loading}
+              className="bg-brand-red hover:bg-red-700 text-white font-display font-black italic px-8 py-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {loading ? 'جاري البحث...' : 'استعراض السجل'}
+            </button>
+          </form>
+
+          {loading ? (
+            <div className="flex flex-col items-center py-12">
+              <div className="w-12 h-12 border-4 border-brand-red border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-gray-500">جاري استرجاع البيانات...</p>
+            </div>
+          ) : hasSearched ? (
+            records.length > 0 ? (
+              <div className="space-y-6">
+                {records.map((record) => (
+                  <motion.div 
+                    key={record.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-brand-red/30 transition-all"
+                  >
+                    <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
+                      <div>
+                        <div className="flex items-center gap-2 text-brand-red font-display font-black italic text-xl mb-1">
+                          <Wrench className="w-5 h-5" />
+                          {record.serviceType}
+                        </div>
+                        <div className="text-gray-400 flex items-center gap-2 text-sm">
+                          <Calendar className="w-4 h-4" />
+                          {record.serviceDate.toDate().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        </div>
+                      </div>
+                      <div className="px-4 py-2 bg-brand-red/10 rounded-lg border border-brand-red/20 text-brand-red font-bold">
+                        {record.carModel}
+                      </div>
+                    </div>
+                    {record.notes && (
+                      <div className="text-gray-500 text-sm leading-relaxed bg-black/30 p-4 rounded-xl border border-white/5">
+                        <FileText className="w-4 h-4 inline-block ml-2 text-gray-600" />
+                        {record.notes}
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-white/5 rounded-2xl border border-dashed border-white/10">
+                <p className="text-gray-500 mb-2">لم يتم العثور على سجلات لهذا الرقم.</p>
+                <p className="text-xs text-gray-600">تأكد من إدخال الرقم الصحيح المسجل في فاتورة الصيانة.</p>
+              </div>
+            )
+          ) : (
+            <div className="text-center py-12">
+              <History className="w-16 h-16 text-white/5 mx-auto mb-4" />
+              <p className="text-gray-600">أدخل رقم جوالك لرؤية سجل صيانة سيارتك</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const FAQItem = ({ question, answer }: { question: string, answer: string }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -911,23 +1592,70 @@ const FAQ = () => (
   </section>
 );
 
-const Footer = () => (
-  <footer className="bg-brand-black border-t border-white/5 py-12">
-    <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-12">
-      <div className="col-span-2">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-xl">
-            <span className="text-brand-red font-display font-black text-xl italic tracking-tighter leading-none">
-              Dr.Fix
-            </span>
-          </div>
-        </div>
-        <p className="text-gray-500 max-w-sm leading-relaxed">
-          مركز الصيانة الأفضل في المنطقة. خبرة تمتد لسنوات في التعامل مع كافة أنواع السيارات والمشاكل التقنية والميكانيكية تحت إشراف المهندس محمد سندي.
-        </p>
-      </div>
+const Footer = () => {
+  const [visitors, setVisitors] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateVisitors = async () => {
+      const statsRef = doc(db, 'stats', 'global');
       
-      <div>
+      try {
+        const statsDoc = await getDoc(statsRef);
+        
+        if (!statsDoc.exists()) {
+          // Create initial doc
+          await setDoc(statsRef, { visitorCount: 1 });
+          setVisitors(1);
+        } else {
+          // Check if already counted in this session
+          const hasVisited = sessionStorage.getItem('hasVisited');
+          if (!hasVisited) {
+            await updateDoc(statsRef, {
+              visitorCount: increment(1)
+            });
+            sessionStorage.setItem('hasVisited', 'true');
+          }
+          
+          // Listen for real-time updates
+          const unsubscribe = onSnapshot(statsRef, (doc) => {
+            if (doc.exists()) {
+              setVisitors(doc.data().visitorCount);
+            }
+          });
+          return unsubscribe;
+        }
+      } catch (error) {
+        console.error("Error updating visitor count:", error);
+      }
+    };
+
+    updateVisitors();
+  }, []);
+
+  return (
+    <footer className="bg-brand-black border-t border-white/5 py-12">
+      <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-12">
+        <div className="col-span-2">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-xl">
+              <span className="text-brand-red font-display font-black text-xl italic tracking-tighter leading-none">
+                Dr.Fix
+              </span>
+            </div>
+          </div>
+          <p className="text-gray-500 max-w-sm leading-relaxed">
+            مركز الصيانة الأفضل في المنطقة. خبرة تمتد لسنوات في التعامل مع كافة أنواع السيارات والمشاكل التقنية والميكانيكية تحت إشراف المهندس محمد سندي.
+          </p>
+          
+          {visitors !== null && (
+            <div className="mt-8 flex items-center gap-2 text-gray-500 text-sm">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span>عدد الزيارات: {visitors.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+        
+        <div>
         <h4 className="font-display font-black mb-6 uppercase tracking-widest text-sm">تواصل معنا</h4>
         <ul className="space-y-4 text-gray-500">
           <li className="flex items-center gap-3">
@@ -979,11 +1707,25 @@ const Footer = () => (
         </div>
       </div>
     </div>
-    <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-white/5 text-center text-gray-600 text-sm font-mono">
-      &copy; {new Date().getFullYear()} DR. FIX AUTO SERVICES. ALL RIGHTS RESERVED.
+    <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-gray-600 text-sm font-mono">
+      <div>&copy; {new Date().getFullYear()} DR. FIX AUTO SERVICES. ALL RIGHTS RESERVED.</div>
+      <button 
+        onClick={async () => {
+          const provider = new GoogleAuthProvider();
+          try {
+            await signInWithPopup(auth, provider);
+          } catch (error) {
+            console.error("Admin login error:", error);
+          }
+        }}
+        className="text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-tighter"
+      >
+        Admin Portal
+      </button>
     </div>
   </footer>
-);
+  );
+};
 
 const ProcessStep = ({ number, title, description }: { number: string, title: string, description: string }) => (
   <motion.div 
@@ -1100,6 +1842,8 @@ export default function App() {
       <Offers />
       <Process />
       <Testimonials />
+      <MaintenanceHistory />
+      <AdminDashboard />
       <BookingForm selectedService={selectedService} />
       <FAQ />
       <Footer />
