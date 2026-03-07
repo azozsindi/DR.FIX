@@ -469,6 +469,15 @@ const ServiceCard = ({ icon: Icon, title, description, onClick }: { icon: any, t
   </motion.div>
 );
 
+const STATIC_SERVICES = [
+  { id: 's1', title: 'خدمة من الباب للباب', description: 'نستلم سيارتك من بيتك، نسوي الصيانة اللازمة، نغسلها، ونسلمها لك جاهزة.', icon: 'Car' },
+  { id: 's2', title: 'ميكانيكا عامة', description: 'إصلاح المحركات، الجيربوكس، وأنظمة التعليق بأعلى معايير الجودة.', icon: 'Wrench' },
+  { id: 's3', title: 'كهرباء وبرمجة', description: 'فحص كمبيوتر، برمجة مفاتيح، وإصلاح كافة المشاكل الكهربائية المعقدة.', icon: 'Zap' },
+  { id: 's4', title: 'تكييف وتبريد', description: 'فحص تسريب الفريون، تعبئة فريون أصلي، وإصلاح الكمبروسر.', icon: 'Cpu' },
+  { id: 's5', title: 'سمكرة وطلاء', description: 'إصلاح الصدمات وطلاء فرن حراري بأجود أنواع البويات العالمية.', icon: 'Hammer' },
+  { id: 's6', title: 'فحص قبل الشراء', description: 'فحص شامل للسيارة (ميكانيكا، كهرباء، بودي) مع تقرير مفصل.', icon: 'Shield' },
+];
+
 const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void }) => {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -498,6 +507,14 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
 
   if (loading) return null;
 
+  // Merge static and dynamic services, avoiding duplicates by title
+  const allServices = [...services];
+  STATIC_SERVICES.forEach(staticS => {
+    if (!services.some(s => s.title === staticS.title)) {
+      allServices.push(staticS as any);
+    }
+  });
+
   return (
     <section id="services" className="py-16 md:py-24 bg-brand-dark">
       <div className="max-w-7xl mx-auto px-4 md:px-6">
@@ -508,38 +525,16 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
 
         <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
           <div className="flex gap-6 md:gap-8">
-            {services.length > 0 ? (
-              services.map((service) => (
-                <div key={service.id} className="min-w-[280px] md:min-w-[350px] snap-center">
-                  <ServiceCard 
-                    icon={getIcon(service.icon)} 
-                    title={service.title} 
-                    description={service.description}
-                    onClick={() => onServiceSelect(service.title)}
-                  />
-                </div>
-              ))
-            ) : (
-              // Fallback to static if no services in DB
-              <>
-                <div className="min-w-[280px] md:min-w-[350px] snap-center">
-                  <ServiceCard 
-                    icon={Car} 
-                    title="خدمة من الباب للباب" 
-                    description="نستلم سيارتك من بيتك، نسوي الصيانة اللازمة، نغسلها، ونسلمها لك جاهزة."
-                    onClick={() => onServiceSelect('home-service')}
-                  />
-                </div>
-                <div className="min-w-[280px] md:min-w-[350px] snap-center">
-                  <ServiceCard 
-                    icon={Wrench} 
-                    title="ميكانيكا عامة" 
-                    description="إصلاح المحركات، الجيربوكس، وأنظمة التعليق بأعلى معايير الجودة."
-                    onClick={() => onServiceSelect('mechanic')}
-                  />
-                </div>
-              </>
-            )}
+            {allServices.map((service) => (
+              <div key={service.id} className="min-w-[280px] md:min-w-[350px] snap-center">
+                <ServiceCard 
+                  icon={getIcon(service.icon)} 
+                  title={service.title} 
+                  description={service.description}
+                  onClick={() => onServiceSelect(service.title)}
+                />
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -556,6 +551,11 @@ interface Offer {
   icon: 'tag' | 'zap';
   createdAt: Timestamp;
 }
+
+const STATIC_OFFERS: Offer[] = [
+  { id: 'o1', title: 'فحص شامل للسيارة', price: '199', subtitle: 'ريال فقط', features: ['فحص الميكانيكا', 'فحص الكهرباء', 'فحص البودي', 'تقرير مفصل'], icon: 'zap', createdAt: Timestamp.now() },
+  { id: 'o2', title: 'تغيير زيت وفلتر', price: '250', subtitle: 'ريال شامل', features: ['زيت أصلي', 'فلتر وكالة', 'فحص السوائل', 'غسيل مجاني'], icon: 'tag', createdAt: Timestamp.now() },
+];
 
 const Offers = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -581,7 +581,8 @@ const Offers = () => {
   }, []);
 
   if (loading) return null;
-  if (offers.length === 0) return null;
+  
+  const displayOffers = offers.length > 0 ? offers : STATIC_OFFERS;
 
   return (
     <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
@@ -592,7 +593,7 @@ const Offers = () => {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {offers.map((offer) => (
+          {displayOffers.map((offer) => (
             <motion.div 
               key={offer.id}
               whileHover={{ y: -10 }}
@@ -629,6 +630,13 @@ const Offers = () => {
   );
 };
 
+const STATIC_GALLERY: GalleryItem[] = [
+  { id: 'g1', title: 'صيانة محركات', imageUrl: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&q=80&w=1000', category: 'صيانة', createdAt: Timestamp.now() },
+  { id: 'g2', title: 'فحص كمبيوتر', imageUrl: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80&w=1000', category: 'صيانة', createdAt: Timestamp.now() },
+  { id: 'g3', title: 'تعديل بودي', imageUrl: 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=1000', category: 'سمكرة', createdAt: Timestamp.now() },
+  { id: 'g4', title: 'تلميع ساطع', imageUrl: 'https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&q=80&w=1000', category: 'تلميع', createdAt: Timestamp.now() },
+];
+
 const Gallery = () => {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -649,7 +657,9 @@ const Gallery = () => {
     return unsubscribe;
   }, []);
 
-  if (loading || items.length === 0) return null;
+  if (loading) return null;
+  
+  const displayItems = items.length > 0 ? items : STATIC_GALLERY;
 
   return (
     <section id="gallery" className="py-24 bg-brand-dark">
@@ -661,7 +671,7 @@ const Gallery = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {items.map((item, idx) => (
+          {displayItems.map((item, idx) => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -1349,6 +1359,22 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
     }
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'gallery' | 'settings') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      if (type === 'gallery') {
+        setGalleryForm({ ...galleryForm, imageUrl: base64String });
+      } else {
+        setSettingsForm({ ...settingsForm, logoUrl: base64String });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -1602,8 +1628,29 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="space-y-8"
             >
+              {/* Quick Actions */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button onClick={() => setIsAdding(true)} className="p-4 glass-card border-brand-red/20 flex flex-col items-center justify-center gap-2 hover:bg-brand-red/5 transition-all group text-center">
+                  <PlusCircle className="w-6 h-6 text-brand-red group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold italic">حجز جديد</span>
+                </button>
+                <button onClick={() => { setActiveTab('content'); setContentTab('offers'); }} className="p-4 glass-card border-white/5 flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all group text-center">
+                  <Tag className="w-6 h-6 text-brand-red group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold italic">إدارة العروض الخاصة</span>
+                </button>
+                <button onClick={() => { setActiveTab('content'); setContentTab('services'); }} className="p-4 glass-card border-white/5 flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all group text-center">
+                  <Wrench className="w-6 h-6 text-brand-red group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold italic">إدارة الخدمات</span>
+                </button>
+                <button onClick={() => { setActiveTab('content'); setContentTab('gallery'); }} className="p-4 glass-card border-white/5 flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all group text-center">
+                  <Camera className="w-6 h-6 text-brand-red group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold italic">إدارة المعرض</span>
+                </button>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Stats Cards */}
               <div className="glass-card p-6 border-brand-red/20">
                 <div className="text-gray-500 text-sm mb-2">إجمالي الحجوزات</div>
@@ -1684,8 +1731,9 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                   </ResponsiveContainer>
                 </div>
               </div>
-            </motion.div>
-          )}
+            </div>
+          </motion.div>
+        )}
 
           {activeTab === 'bookings' && (
             <motion.div 
@@ -1771,7 +1819,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
               <div className="flex gap-4 border-b border-white/5 pb-4">
                 {[
                   { id: 'services', label: 'الخدمات' },
-                  { id: 'offers', label: 'العروض' },
+                  { id: 'offers', label: 'العروض الخاصة' },
                   { id: 'gallery', label: 'المعرض' },
                 ].map((sub) => (
                   <button
@@ -1789,7 +1837,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
 
               {contentTab === 'services' && (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {services.map((s) => (
+                  {services.length > 0 ? services.map((s) => (
                     <div key={s.id} className="glass-card p-6 border-white/5 group">
                       <div className="flex justify-between items-start mb-4">
                         <div className="w-10 h-10 bg-brand-red/10 rounded-lg flex items-center justify-center text-brand-red">
@@ -1807,13 +1855,24 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                       <h4 className="font-bold mb-2">{s.title}</h4>
                       <p className="text-gray-500 text-xs line-clamp-2">{s.description}</p>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="md:col-span-2 lg:col-span-3 py-12 text-center glass-card border-dashed border-white/10">
+                      <Wrench className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-6">لا توجد خدمات مضافة حالياً</p>
+                      <button 
+                        onClick={() => setIsAdding(true)}
+                        className="px-6 py-2 bg-brand-red/10 text-brand-red border border-brand-red/20 rounded-lg font-bold text-sm hover:bg-brand-red hover:text-white transition-all"
+                      >
+                        إضافة أول خدمة
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
               {contentTab === 'offers' && (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {offers.map((o) => (
+                  {offers.length > 0 ? offers.map((o) => (
                     <div key={o.id} className="glass-card p-6 border-white/5">
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
@@ -1840,13 +1899,24 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                       <h4 className="font-bold mb-2">{o.title}</h4>
                       <div className="text-xs text-gray-500">{o.features.length} مميزات</div>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="md:col-span-2 lg:col-span-3 py-12 text-center glass-card border-dashed border-white/10">
+                      <Tag className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-6">لا توجد عروض مضافة حالياً</p>
+                      <button 
+                        onClick={() => setIsAdding(true)}
+                        className="px-6 py-2 bg-brand-red/10 text-brand-red border border-brand-red/20 rounded-lg font-bold text-sm hover:bg-brand-red hover:text-white transition-all"
+                      >
+                        إضافة أول عرض
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
               {contentTab === 'gallery' && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {gallery.map((item) => (
+                  {gallery.length > 0 ? gallery.map((item) => (
                     <div key={item.id} className="relative group aspect-square rounded-xl overflow-hidden border border-white/10">
                       <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center">
@@ -1867,7 +1937,18 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="col-span-2 md:col-span-4 py-12 text-center glass-card border-dashed border-white/10">
+                      <Camera className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-6">المعرض فارغ حالياً</p>
+                      <button 
+                        onClick={() => setIsAdding(true)}
+                        className="px-6 py-2 bg-brand-red/10 text-brand-red border border-brand-red/20 rounded-lg font-bold text-sm hover:bg-brand-red hover:text-white transition-all"
+                      >
+                        إضافة أول صورة
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </motion.div>
@@ -2037,19 +2118,32 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase">رابط اللوجو (URL)</label>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex gap-4">
+                      <input 
+                        type="url"
+                        value={settingsForm.logoUrl}
+                        onChange={e => setSettingsForm({...settingsForm, logoUrl: e.target.value})}
+                        placeholder="https://example.com/logo.png"
+                        className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                      {settingsForm.logoUrl && (
+                        <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
+                          <img src={settingsForm.logoUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-px flex-1 bg-white/5" />
+                      <span className="text-[10px] text-gray-600 uppercase font-bold">أو ارفع صورة</span>
+                      <div className="h-px flex-1 bg-white/5" />
+                    </div>
                     <input 
-                      type="url"
-                      value={settingsForm.logoUrl}
-                      onChange={e => setSettingsForm({...settingsForm, logoUrl: e.target.value})}
-                      placeholder="https://example.com/logo.png"
-                      className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'settings')}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red file:bg-brand-red file:border-none file:rounded-lg file:text-white file:px-4 file:py-1 file:mr-4 file:cursor-pointer"
                     />
-                    {settingsForm.logoUrl && (
-                      <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
-                        <img src={settingsForm.logoUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      </div>
-                    )}
                   </div>
                   <p className="text-xs text-gray-500">يفضل استخدام صورة بخلفية شفافة (PNG) وبمقاس مربع.</p>
                 </div>
@@ -2062,6 +2156,39 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                   {loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
                 </button>
               </form>
+
+              <div className="mt-12 pt-12 border-t border-white/5">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-brand-red" />
+                  إدارة محتوى الموقع
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button 
+                    onClick={() => { setActiveTab('content'); setContentTab('services'); }}
+                    className="p-6 bg-white/5 border border-white/5 rounded-2xl hover:border-brand-red/50 transition-all text-right group"
+                  >
+                    <Wrench className="w-8 h-8 text-brand-red mb-4 group-hover:scale-110 transition-transform" />
+                    <div className="font-bold mb-1">إدارة الخدمات</div>
+                    <div className="text-xs text-gray-500">تعديل الخدمات التي تظهر للعملاء</div>
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('content'); setContentTab('offers'); }}
+                    className="p-6 bg-white/5 border border-white/5 rounded-2xl hover:border-brand-red/50 transition-all text-right group"
+                  >
+                    <Tag className="w-8 h-8 text-brand-red mb-4 group-hover:scale-110 transition-transform" />
+                    <div className="font-bold mb-1">إدارة العروض الخاصة</div>
+                    <div className="text-xs text-gray-500">تعديل العروض الخاصة والخصومات</div>
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('content'); setContentTab('gallery'); }}
+                    className="p-6 bg-white/5 border border-white/5 rounded-2xl hover:border-brand-red/50 transition-all text-right group"
+                  >
+                    <Camera className="w-8 h-8 text-brand-red mb-4 group-hover:scale-110 transition-transform" />
+                    <div className="font-bold mb-1">إدارة المعرض</div>
+                    <div className="text-xs text-gray-500">رفع صور جديدة لأعمال المركز</div>
+                  </button>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -2224,15 +2351,46 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-500 uppercase">رابط الصورة</label>
-                      <input 
-                        required
-                        value={galleryForm.imageUrl}
-                        onChange={e => setGalleryForm({...galleryForm, imageUrl: e.target.value})}
-                        className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
-                      />
+                      <label className="text-xs font-bold text-gray-500 uppercase">رفع الصورة</label>
+                      <div className="flex flex-col gap-4">
+                        <input 
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload(e, 'gallery')}
+                          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red file:bg-brand-red file:border-none file:rounded-lg file:text-white file:px-4 file:py-1 file:mr-4 file:cursor-pointer"
+                        />
+                        {galleryForm.imageUrl && (
+                          <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-white/10">
+                            <img src={galleryForm.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                            <button 
+                              type="button"
+                              onClick={() => setGalleryForm({ ...galleryForm, imageUrl: '' })}
+                              className="absolute top-2 right-2 p-2 bg-black/60 rounded-full text-white hover:bg-brand-red transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <div className="h-px flex-1 bg-white/5" />
+                          <span className="text-[10px] text-gray-600 uppercase font-bold">أو استخدم رابط</span>
+                          <div className="h-px flex-1 bg-white/5" />
+                        </div>
+                        <input 
+                          placeholder="https://example.com/image.jpg"
+                          value={galleryForm.imageUrl}
+                          onChange={e => setGalleryForm({...galleryForm, imageUrl: e.target.value})}
+                          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red text-sm"
+                        />
+                      </div>
                     </div>
-                    <button className="w-full py-4 bg-brand-red rounded-xl font-bold italic">إضافة للمعرض</button>
+                    <button 
+                      type="submit" 
+                      disabled={loading || !galleryForm.imageUrl}
+                      className="w-full py-4 bg-brand-red rounded-xl font-bold italic disabled:opacity-50"
+                    >
+                      {loading ? 'جاري الحفظ...' : (editingItem ? 'تحديث الصورة' : 'إضافة للمعرض')}
+                    </button>
                   </form>
                 )}
               </motion.div>
