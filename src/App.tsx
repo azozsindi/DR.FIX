@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { 
@@ -16,6 +16,8 @@ import {
   MapPin, 
   Clock,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   X,
   Hammer,
@@ -40,6 +42,7 @@ import {
   User,
   MessageSquare,
   AlertCircle,
+  ArrowRight,
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { cn } from './lib/utils';
@@ -261,7 +264,7 @@ const Navbar = ({ settings }: { settings: AppSettings }) => {
           <div className="relative flex items-center justify-center">
             <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-lg overflow-hidden">
               {settings.logoUrl ? (
-                <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
               ) : (
                 <span className="text-brand-red font-display font-black text-lg italic tracking-tighter leading-none">
                   Dr.Fix
@@ -333,21 +336,14 @@ const Navbar = ({ settings }: { settings: AppSettings }) => {
 const Hero = () => (
   <section className="relative min-h-screen flex items-center pt-24 md:pt-20 overflow-hidden">
     {/* Background Pattern */}
-    <motion.div 
-      animate={{ 
-        x: [0, 10, 0],
-        y: [0, 10, 0]
-      }}
-      transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-      className="absolute inset-0 z-0 opacity-10 md:opacity-20"
-    >
+    <div className="absolute inset-0 z-0 opacity-10 md:opacity-20 pointer-events-none">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-brand-red/20 via-transparent to-transparent" />
       <div className="grid grid-cols-6 md:grid-cols-12 h-full w-full border-x border-white/5">
         {[...Array(12)].map((_, i) => (
           <div key={i} className="border-r border-white/5 h-full" />
         ))}
       </div>
-    </motion.div>
+    </div>
 
     <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10 grid lg:grid-cols-2 gap-12 items-center">
       <motion.div 
@@ -424,6 +420,7 @@ const Hero = () => (
             alt="Car Maintenance" 
             className="w-full h-[250px] sm:h-[350px] md:h-[500px] object-cover"
             referrerPolicy="no-referrer"
+            loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-transparent to-transparent" />
         </div>
@@ -440,7 +437,7 @@ const Hero = () => (
   </section>
 );
 
-const ServiceCard = ({ icon: Icon, title, description, onClick }: { icon: any, title: string, description: string, onClick?: () => void }) => (
+const ServiceCard = React.memo(({ icon: Icon, title, description, onClick }: { icon: any, title: string, description: string, onClick?: () => void }) => (
   <motion.div 
     whileHover={{ 
       y: -10,
@@ -467,7 +464,7 @@ const ServiceCard = ({ icon: Icon, title, description, onClick }: { icon: any, t
       </div>
     </div>
   </motion.div>
-);
+));
 
 const STATIC_SERVICES = [
   { id: 's1', title: 'خدمة من الباب للباب', description: 'نستلم سيارتك من بيتك، نسوي الصيانة اللازمة، نغسلها، ونسلمها لك جاهزة.', icon: 'Car' },
@@ -481,6 +478,7 @@ const STATIC_SERVICES = [
 const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void }) => {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'services'));
@@ -498,6 +496,18 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
     return unsubscribe;
   }, []);
 
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const { clientWidth } = scrollRef.current;
+      const scrollAmount = direction === 'left' ? -clientWidth / 2 : clientWidth / 2;
+      
+      scrollRef.current.scrollBy({
+        left: scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   const getIcon = (iconName: string) => {
     const icons: Record<string, any> = {
       Car, Wrench, Zap, Cpu, Hammer, Shield, Star, Tool: Wrench
@@ -505,37 +515,57 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
     return icons[iconName] || Wrench;
   };
 
+  const allServices = React.useMemo(() => {
+    const merged = [...services];
+    STATIC_SERVICES.forEach(staticS => {
+      if (!services.some(s => s.title === staticS.title)) {
+        merged.push(staticS as any);
+      }
+    });
+    return merged;
+  }, [services]);
+
   if (loading) return null;
 
-  // Merge static and dynamic services, avoiding duplicates by title
-  const allServices = [...services];
-  STATIC_SERVICES.forEach(staticS => {
-    if (!services.some(s => s.title === staticS.title)) {
-      allServices.push(staticS as any);
-    }
-  });
-
   return (
-    <section id="services" className="py-16 md:py-24 bg-brand-dark">
+    <section id="services" className="py-16 md:py-24 bg-brand-dark relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 md:px-6">
-        <div className="text-center mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">خدماتنا <span className="text-brand-red">الشاملة</span></h2>
-          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+        <div className="flex flex-col md:flex-row justify-between items-center mb-12 md:mb-16 gap-4">
+          <div className="text-center md:text-right">
+            <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">خدماتنا <span className="text-brand-red">الشاملة</span></h2>
+            <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto md:mx-0 rounded-full" />
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => scroll('right')}
+              className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-red hover:border-brand-red transition-all group"
+            >
+              <ChevronRight className="w-6 h-6 group-hover:scale-110 transition-transform" />
+            </button>
+            <button 
+              onClick={() => scroll('left')}
+              className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-red hover:border-brand-red transition-all group"
+            >
+              <ChevronLeft className="w-6 h-6 group-hover:scale-110 transition-transform" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
-          <div className="flex gap-6 md:gap-8">
-            {allServices.map((service) => (
-              <div key={service.id} className="min-w-[280px] md:min-w-[350px] snap-center">
-                <ServiceCard 
-                  icon={getIcon(service.icon)} 
-                  title={service.title} 
-                  description={service.description}
-                  onClick={() => onServiceSelect(service.title)}
-                />
-              </div>
-            ))}
-          </div>
+        <div 
+          ref={scrollRef}
+          className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar cursor-grab active:cursor-grabbing"
+        >
+          {allServices.map((service) => (
+            <div key={service.id} className="min-w-[280px] md:min-w-[350px] snap-center">
+              <ServiceCard 
+                icon={getIcon(service.icon)} 
+                title={service.title} 
+                description={service.description}
+                onClick={() => onServiceSelect(service.title)}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -549,12 +579,13 @@ interface Offer {
   subtitle?: string;
   features: string[];
   icon: 'tag' | 'zap';
+  active?: boolean;
   createdAt: Timestamp;
 }
 
 const STATIC_OFFERS: Offer[] = [
-  { id: 'o1', title: 'فحص شامل للسيارة', price: '199', subtitle: 'ريال فقط', features: ['فحص الميكانيكا', 'فحص الكهرباء', 'فحص البودي', 'تقرير مفصل'], icon: 'zap', createdAt: Timestamp.now() },
-  { id: 'o2', title: 'تغيير زيت وفلتر', price: '250', subtitle: 'ريال شامل', features: ['زيت أصلي', 'فلتر وكالة', 'فحص السوائل', 'غسيل مجاني'], icon: 'tag', createdAt: Timestamp.now() },
+  { id: 'o1', title: 'فحص شامل للسيارة', price: '199', subtitle: 'ريال فقط', features: ['فحص الميكانيكا', 'فحص الكهرباء', 'فحص البودي', 'تقرير مفصل'], icon: 'zap', createdAt: Timestamp.now(), active: true },
+  { id: 'o2', title: 'تغيير زيت وفلتر', price: '250', subtitle: 'ريال شامل', features: ['زيت أصلي', 'فلتر وكالة', 'فحص السوائل', 'غسيل مجاني'], icon: 'tag', createdAt: Timestamp.now(), active: true },
 ];
 
 const Offers = () => {
@@ -580,9 +611,17 @@ const Offers = () => {
     return unsubscribe;
   }, []);
 
+  const allOffers = React.useMemo(() => {
+    const merged = [...offers];
+    STATIC_OFFERS.forEach(staticOffer => {
+      if (!offers.some(o => o.title === staticOffer.title)) {
+        merged.push(staticOffer);
+      }
+    });
+    return merged;
+  }, [offers]);
+
   if (loading) return null;
-  
-  const displayOffers = offers.length > 0 ? offers : STATIC_OFFERS;
 
   return (
     <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
@@ -593,10 +632,13 @@ const Offers = () => {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {displayOffers.map((offer) => (
+          {allOffers.map((offer) => (
             <motion.div 
               key={offer.id}
               whileHover={{ y: -10 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
               className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
@@ -657,9 +699,17 @@ const Gallery = () => {
     return unsubscribe;
   }, []);
 
+  const allItems = React.useMemo(() => {
+    const merged = [...items];
+    STATIC_GALLERY.forEach(staticItem => {
+      if (!items.some(item => item.title === staticItem.title)) {
+        merged.push(staticItem);
+      }
+    });
+    return merged;
+  }, [items]);
+
   if (loading) return null;
-  
-  const displayItems = items.length > 0 ? items : STATIC_GALLERY;
 
   return (
     <section id="gallery" className="py-24 bg-brand-dark">
@@ -671,18 +721,19 @@ const Gallery = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {displayItems.map((item, idx) => (
+          {allItems.map((item, idx) => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
-              transition={{ delay: idx * 0.1 }}
-              viewport={{ once: true }}
+              transition={{ delay: idx * 0.05 }}
+              viewport={{ once: true, margin: "-50px" }}
               className="group relative aspect-square rounded-2xl overflow-hidden border border-white/10"
             >
               <img 
                 src={item.imageUrl} 
                 alt={item.title} 
+                loading="lazy"
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 referrerPolicy="no-referrer"
               />
@@ -927,7 +978,7 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
   );
 };
 
-const TestimonialCard = ({ name, comment, rating, reply }: { name: string, comment: string, rating: number, reply?: string }) => (
+const TestimonialCard = React.memo(({ name, comment, rating, reply }: { name: string, comment: string, rating: number, reply?: string }) => (
   <motion.div 
     whileHover={{ y: -5 }}
     className="glass-card p-6 border-white/5 hover:border-brand-red/30 transition-all shadow-xl h-full flex flex-col"
@@ -953,23 +1004,23 @@ const TestimonialCard = ({ name, comment, rating, reply }: { name: string, comme
       <span className="font-bold text-sm">{name}</span>
     </div>
   </motion.div>
-);
+));
+
+const STATIC_TESTIMONIALS = [
+  { name: "أحمد", comment: "خدمة ممتازة جداً، استلموا السيارة من البيت ورجعوها في نفس اليوم نظيفة ومصلحة. المهندس محمد قمة في الأخلاق والأمانة.", rating: 5 },
+  { name: "فارس", comment: "عجبني إنه يغسل السيارة قبل لا يجيبها ههههههههههههههههه، صراحة خدمة فندقية مو بس صيانة! الله يبارك لكم.", rating: 5 },
+  { name: "خالد", comment: "أفضل مركز صيانة تعاملت معه في جدة. دقة في المواعيد وشغل احترافي وسعر منافس جداً مقارنة بالوكالة.", rating: 5 },
+  { name: "مرام", comment: "وفروا علي عناء الذهاب للورشة، الخدمة من الباب للباب مريحة جداً. شكراً دكتور فيكس على الاحترافية.", rating: 5 },
+  { name: "سلطان", comment: "المهندس محمد سندي فنان، صلح لي مشكلة في الكهرباء عجزت عنها الوكالة وبسعر معقول جداً.", rating: 5 },
+  { name: "خلود", comment: "أفضل شيء إنهم يجونك لين البيت، ما عاد أشيل هم الورش والزحمة. تعامل راقي جداً.", rating: 5 }
+];
 
 const Testimonials = () => {
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const staticTestimonials = [
-    { name: "أحمد", comment: "خدمة ممتازة جداً، استلموا السيارة من البيت ورجعوها في نفس اليوم نظيفة ومصلحة. المهندس محمد قمة في الأخلاق والأمانة.", rating: 5 },
-    { name: "فارس", comment: "عجبني إنه يغسل السيارة قبل لا يجيبها ههههههههههههههههه، صراحة خدمة فندقية مو بس صيانة! الله يبارك لكم.", rating: 5 },
-    { name: "خالد", comment: "أفضل مركز صيانة تعاملت معه في جدة. دقة في المواعيد وشغل احترافي وسعر منافس جداً مقارنة بالوكالة.", rating: 5 },
-    { name: "مرام", comment: "وفروا علي عناء الذهاب للورشة، الخدمة من الباب للباب مريحة جداً. شكراً دكتور فيكس على الاحترافية.", rating: 5 },
-    { name: "سلطان", comment: "المهندس محمد سندي فنان، صلح لي مشكلة في الكهرباء عجزت عنها الوكالة وبسعر معقول جداً.", rating: 5 },
-    { name: "خلود", comment: "أفضل شيء إنهم يجونك لين البيت، ما عاد أشيل هم الورش والزحمة. تعامل راقي جداً.", rating: 5 }
-  ];
-
   useEffect(() => {
-    const q = query(collection(db, 'testimonials'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'testimonials'), orderBy('createdAt', 'desc'), limit(10));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -985,7 +1036,9 @@ const Testimonials = () => {
     return () => unsubscribe();
   }, []);
 
-  const displayData = testimonials.length > 0 ? testimonials : staticTestimonials;
+  const displayData = React.useMemo(() => [...testimonials, ...STATIC_TESTIMONIALS], [testimonials]);
+
+  if (loading) return null;
 
   return (
     <section id="testimonials" className="py-24 bg-brand-dark relative overflow-hidden">
@@ -995,26 +1048,20 @@ const Testimonials = () => {
           <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-12 h-12 text-brand-red animate-spin" />
+        <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
+          <div className="flex gap-6 md:gap-8">
+            {displayData.map((t, i) => (
+              <div key={t.id || i} className="min-w-[280px] md:min-w-[350px] snap-center">
+                <TestimonialCard 
+                  name={t.name} 
+                  comment={t.comment} 
+                  rating={t.rating} 
+                  reply={(t as any).reply}
+                />
+              </div>
+            ))}
           </div>
-        ) : (
-          <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
-            <div className="flex gap-6 md:gap-8">
-              {displayData.map((t, i) => (
-                <div key={t.id || i} className="min-w-[280px] md:min-w-[350px] snap-center">
-                  <TestimonialCard 
-                    name={t.name} 
-                    comment={t.comment} 
-                    rating={t.rating} 
-                    reply={(t as any).reply}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
 
         <div className="mt-16 max-w-2xl mx-auto">
           <AddTestimonialForm />
@@ -1153,17 +1200,6 @@ interface ServiceItem {
   order?: number;
 }
 
-interface Offer {
-  id: string;
-  title: string;
-  price: string;
-  subtitle?: string;
-  features: string[];
-  icon: 'tag' | 'zap';
-  active: boolean;
-  createdAt: Timestamp;
-}
-
 const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onLogout: () => void, settings: AppSettings }) => {
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
@@ -1178,7 +1214,6 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [searchPhone, setSearchPhone] = useState('');
-  const [customerHistory, setCustomerHistory] = useState<MaintenanceRecord[]>([]);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(Notification.permission);
 
   // Form States
@@ -1344,7 +1379,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
         features: offerForm.features.split('\n').filter(f => f.trim()),
         updatedAt: serverTimestamp()
       };
-      if (editingItem && editingItem.type === 'offer') {
+      if (editingItem && editingItem.type === 'offer' && !editingItem.id.startsWith('static-')) {
         await updateDoc(doc(db, 'offers', editingItem.id), data);
       } else {
         await addDoc(collection(db, 'offers'), { ...data, active: true, createdAt: serverTimestamp() });
@@ -1402,7 +1437,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
         ...galleryForm,
         updatedAt: serverTimestamp()
       };
-      if (editingItem && editingItem.type === 'gallery') {
+      if (editingItem && editingItem.type === 'gallery' && !editingItem.id.startsWith('static-')) {
         await updateDoc(doc(db, 'gallery', editingItem.id), data);
       } else {
         await addDoc(collection(db, 'gallery'), { ...data, createdAt: serverTimestamp() });
@@ -1499,12 +1534,6 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
     }
   };
 
-  const handleSearch = () => {
-    if (!searchPhone.trim()) return;
-    const history = records.filter(r => r.customerPhone.includes(searchPhone.trim()));
-    setCustomerHistory(history);
-  };
-
   const handleUpdateSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -1567,6 +1596,13 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => window.location.href = '/'}
+              className="flex items-center gap-2 px-4 py-3 bg-white/5 border border-white/10 rounded-xl font-bold text-sm hover:bg-white/10 transition-all text-gray-300"
+            >
+              <ArrowRight className="w-4 h-4" />
+              العودة للموقع
+            </button>
             {notificationPermission !== 'granted' && (
               <button 
                 onClick={() => {
@@ -1684,6 +1720,68 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                 </div>
                 <div className="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
                   <div className="h-full bg-brand-red" style={{ width: '25%' }} />
+                </div>
+              </div>
+
+              <div className="glass-card p-6 border-brand-red/20">
+                <div className="text-gray-500 text-sm mb-2">إجمالي العروض</div>
+                <div className="text-4xl font-display font-black text-brand-red">
+                  {offers.length + STATIC_OFFERS.filter(so => !offers.some(o => o.title === so.title)).length}
+                </div>
+                <div className="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-red" style={{ width: '50%' }} />
+                </div>
+              </div>
+
+              <div className="glass-card p-6 border-brand-red/20">
+                <div className="text-gray-500 text-sm mb-2">صور المعرض</div>
+                <div className="text-4xl font-display font-black text-brand-red">
+                  {gallery.length + STATIC_GALLERY.filter(sg => !gallery.some(g => g.title === sg.title)).length}
+                </div>
+                <div className="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-red" style={{ width: '60%' }} />
+                </div>
+              </div>
+
+              <div className="md:col-span-3 glass-card p-6 border-white/5">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-bold">آخر الحجوزات</h3>
+                  <button 
+                    onClick={() => setActiveTab('bookings')}
+                    className="text-brand-red text-sm font-bold hover:underline"
+                  >
+                    عرض الكل
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {records.slice(0, 5).map((record) => (
+                    <div key={record.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-brand-red/10 rounded-lg flex items-center justify-center text-brand-red">
+                          <Car className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm">{record.carModel}</div>
+                          <div className="text-xs text-gray-500">{record.serviceType}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold">{record.cost} ريال</div>
+                        <div className={cn(
+                          "text-[10px] font-bold px-2 py-0.5 rounded-full inline-block",
+                          record.status === 'completed' ? "text-green-500 bg-green-500/10" :
+                          record.status === 'in-progress' ? "text-blue-500 bg-blue-500/10" :
+                          "text-yellow-500 bg-yellow-500/10"
+                        )}>
+                          {record.status === 'completed' ? 'مكتمل' : 
+                           record.status === 'in-progress' ? 'قيد العمل' : 'قيد الانتظار'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {records.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 text-sm italic">لا توجد حجوزات حالياً</div>
+                  )}
                 </div>
               </div>
 
@@ -1872,34 +1970,42 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
 
               {contentTab === 'offers' && (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {offers.length > 0 ? offers.map((o) => (
+                  {[...offers, ...STATIC_OFFERS.filter(so => !offers.some(o => o.title === so.title)).map(so => ({ ...so, id: 'static-' + so.id, isStatic: true }))].map((o) => (
                     <div key={o.id} className="glass-card p-6 border-white/5">
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
                           <div className="font-display font-black text-brand-red text-xl">{o.price}</div>
                           <button 
-                            onClick={() => handleToggleOfferStatus(o.id, o.active !== false)}
+                            onClick={() => ! (o as any).isStatic && handleToggleOfferStatus(o.id, o.active !== false)}
+                            disabled={(o as any).isStatic}
                             className={cn(
                               "text-[10px] px-2 py-1 rounded-full font-bold",
-                              o.active !== false ? "bg-green-500/10 text-green-500 border border-green-500/20" : "bg-gray-500/10 text-gray-500 border border-gray-500/20"
+                              o.active !== false ? "bg-green-500/10 text-green-500 border border-green-500/20" : "bg-gray-500/10 text-gray-500 border border-gray-500/20",
+                              (o as any).isStatic && "opacity-50 cursor-not-allowed"
                             )}
                           >
                             {o.active !== false ? 'نشط' : 'متوقف'}
                           </button>
+                          {(o as any).isStatic && (
+                            <span className="text-[10px] bg-brand-red/20 text-brand-red px-2 py-1 rounded-full font-bold">افتراضي</span>
+                          )}
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => handleEdit('offer', o)} className="text-gray-600 hover:text-white transition-colors">
                             <FileText className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDelete('offers', o.id)} className="text-gray-600 hover:text-brand-red transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {! (o as any).isStatic && (
+                            <button onClick={() => handleDelete('offers', o.id)} className="text-gray-600 hover:text-brand-red transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       <h4 className="font-bold mb-2">{o.title}</h4>
                       <div className="text-xs text-gray-500">{o.features.length} مميزات</div>
                     </div>
-                  )) : (
+                  ))}
+                  {offers.length === 0 && STATIC_OFFERS.length === 0 && (
                     <div className="md:col-span-2 lg:col-span-3 py-12 text-center glass-card border-dashed border-white/10">
                       <Tag className="w-12 h-12 text-gray-700 mx-auto mb-4" />
                       <p className="text-gray-500 mb-6">لا توجد عروض مضافة حالياً</p>
@@ -1916,11 +2022,14 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
 
               {contentTab === 'gallery' && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {gallery.length > 0 ? gallery.map((item) => (
+                  {[...gallery, ...STATIC_GALLERY.filter(sg => !gallery.some(g => g.title === sg.title)).map(sg => ({ ...sg, id: 'static-' + sg.id, isStatic: true }))].map((item) => (
                     <div key={item.id} className="relative group aspect-square rounded-xl overflow-hidden border border-white/10">
-                      <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                      <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center">
                         <div className="text-xs font-bold mb-2">{item.title}</div>
+                        {(item as any).isStatic && (
+                          <div className="text-[10px] bg-brand-red/20 text-brand-red px-2 py-0.5 rounded-full mb-2">افتراضي</div>
+                        )}
                         <div className="flex gap-2">
                           <button 
                             onClick={() => handleEdit('gallery', item)}
@@ -1928,16 +2037,19 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                           >
                             <FileText className="w-4 h-4" />
                           </button>
-                          <button 
-                            onClick={() => handleDelete('gallery', item.id)}
-                            className="p-2 bg-brand-red rounded-lg text-white hover:bg-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {! (item as any).isStatic && (
+                            <button 
+                              onClick={() => handleDelete('gallery', item.id)}
+                              className="p-2 bg-brand-red rounded-lg text-white hover:bg-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
-                  )) : (
+                  ))}
+                  {gallery.length === 0 && STATIC_GALLERY.length === 0 && (
                     <div className="col-span-2 md:col-span-4 py-12 text-center glass-card border-dashed border-white/10">
                       <Camera className="w-12 h-12 text-gray-700 mx-auto mb-4" />
                       <p className="text-gray-500 mb-6">المعرض فارغ حالياً</p>
@@ -1972,7 +2084,6 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                     className="flex-1 bg-black/50 border border-white/10 rounded-xl px-6 py-4 outline-none focus:border-brand-red transition-all"
                   />
                   <button 
-                    onClick={handleSearch}
                     className="px-8 bg-brand-red rounded-xl font-bold flex items-center gap-2"
                   >
                     <Search className="w-5 h-5" />
@@ -1981,43 +2092,51 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                 </div>
               </div>
 
-              {customerHistory.length > 0 && (
-                <div className="space-y-4">
-                  <h4 className="font-bold text-gray-500">نتائج البحث ({customerHistory.length})</h4>
-                  {customerHistory.map((record) => (
-                    <div key={record.id} className="glass-card p-6 border-white/5 space-y-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-bold text-lg">{record.carModel}</div>
-                          <div className="text-sm text-gray-500">{record.serviceDate?.toDate().toLocaleDateString('ar-SA')}</div>
-                        </div>
-                        <div className="text-brand-red font-display font-black text-xl">{record.cost} ريال</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="bg-white/5 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">الخدمة</div>
-                          <div className="font-bold">{record.serviceType}</div>
-                        </div>
-                        <div className="bg-white/5 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">الحالة</div>
-                          <div className={cn(
-                            "font-bold",
-                            record.status === 'completed' ? "text-green-500" : "text-yellow-500"
-                          )}>
-                            {record.status === 'completed' ? 'مكتمل' : 'قيد المعالجة'}
-                          </div>
+              {/* Customer History List */}
+              <div className="space-y-4">
+                <h4 className="font-bold text-gray-500">
+                  {searchPhone.trim() ? `نتائج البحث (${records.filter(r => r.customerPhone.includes(searchPhone.trim())).length})` : `جميع السجلات (${records.length})`}
+                </h4>
+                {(searchPhone.trim() ? records.filter(r => r.customerPhone.includes(searchPhone.trim())) : records).map((record) => (
+                  <div key={record.id} className="glass-card p-6 border-white/5 space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-bold text-lg">{record.carModel}</div>
+                        <div className="text-sm text-gray-500">
+                          {record.customerPhone} • {record.serviceDate?.toDate().toLocaleDateString('ar-SA')}
                         </div>
                       </div>
-                      {record.notes && (
-                        <div className="bg-white/5 p-3 rounded-lg">
-                          <div className="text-gray-500 text-xs mb-1">ملاحظات الفني</div>
-                          <p className="text-gray-400 italic text-xs">{record.notes}</p>
-                        </div>
-                      )}
+                      <div className="text-brand-red font-display font-black text-xl">{record.cost} ريال</div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="bg-white/5 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">الخدمة</div>
+                        <div className="font-bold">{record.serviceType}</div>
+                      </div>
+                      <div className="bg-white/5 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">الحالة</div>
+                        <div className={cn(
+                          "font-bold",
+                          record.status === 'completed' ? "text-green-500" : "text-yellow-500"
+                        )}>
+                          {record.status === 'completed' ? 'مكتمل' : 'قيد المعالجة'}
+                        </div>
+                      </div>
+                    </div>
+                    {record.notes && (
+                      <div className="bg-white/5 p-3 rounded-lg">
+                        <div className="text-gray-500 text-xs mb-1">ملاحظات الفني</div>
+                        <p className="text-gray-400 italic text-xs">{record.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {(searchPhone.trim() ? records.filter(r => r.customerPhone.includes(searchPhone.trim())) : records).length === 0 && (
+                  <div className="text-center py-12 glass-card border-white/5 text-gray-500 italic">
+                    لا توجد سجلات مطابقة
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
 
@@ -2028,7 +2147,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
               animate={{ opacity: 1 }}
               className="space-y-4"
             >
-              {testimonials.map((t) => (
+              {[...testimonials, ...STATIC_TESTIMONIALS.map(st => ({ ...st, id: 'static-' + st.name, isStatic: true }))].map((t) => (
                 <div key={t.id} className="glass-card p-6 border-white/5">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-4">
@@ -2036,7 +2155,10 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                         {t.name[0]}
                       </div>
                       <div>
-                        <div className="font-bold">{t.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold">{t.name}</span>
+                          {t.isStatic && <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-gray-500">افتراضي</span>}
+                        </div>
                         <div className="flex gap-1">
                           {[...Array(5)].map((_, i) => (
                             <Star key={i} className={cn("w-3 h-3", i < t.rating ? "fill-brand-red text-brand-red" : "text-gray-700")} />
@@ -2044,46 +2166,52 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => handleDelete('testimonials', t.id!)} className="text-gray-600 hover:text-brand-red">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!t.isStatic && (
+                      <button onClick={() => handleDelete('testimonials', t.id!)} className="text-gray-600 hover:text-brand-red">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   <p className="text-gray-400 text-sm italic mb-4">"{t.comment}"</p>
                   
-                  {t.reply ? (
-                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 text-sm">
-                      <div className="text-brand-red font-bold mb-1 text-xs">ردك:</div>
-                      <p className="text-gray-500">{t.reply}</p>
-                      <button 
-                        onClick={() => {
-                          setReplyingTo(t.id!);
-                          setReplyText(t.reply || '');
-                        }}
-                        className="mt-2 text-xs text-gray-600 hover:text-white"
-                      >
-                        تعديل الرد
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {replyingTo === t.id ? (
-                        <div className="flex gap-2">
-                          <input 
-                            value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
-                            className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-red"
-                            placeholder="اكتب ردك..."
-                          />
-                          <button onClick={() => handleReply(t.id!)} className="px-4 bg-brand-red rounded-lg text-xs font-bold">إرسال</button>
-                          <button onClick={() => setReplyingTo(null)} className="px-4 bg-white/5 rounded-lg text-xs">إلغاء</button>
+                  {!t.isStatic && (
+                    <div className="mt-4">
+                      {t.reply ? (
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 text-sm">
+                          <div className="text-brand-red font-bold mb-1 text-xs">ردك:</div>
+                          <p className="text-gray-500">{t.reply}</p>
+                          <button 
+                            onClick={() => {
+                              setReplyingTo(t.id!);
+                              setReplyText(t.reply || '');
+                            }}
+                            className="mt-2 text-xs text-gray-600 hover:text-white"
+                          >
+                            تعديل الرد
+                          </button>
                         </div>
                       ) : (
-                        <button 
-                          onClick={() => setReplyingTo(t.id!)}
-                          className="text-xs text-brand-red font-bold hover:underline"
-                        >
-                          إضافة رد
-                        </button>
+                        <div className="flex flex-col gap-2">
+                          {replyingTo === t.id ? (
+                            <div className="flex gap-2">
+                              <input 
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                                className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-red"
+                                placeholder="اكتب ردك..."
+                              />
+                              <button onClick={() => handleReply(t.id!)} className="px-4 bg-brand-red rounded-lg text-xs font-bold">إرسال</button>
+                              <button onClick={() => setReplyingTo(null)} className="px-4 bg-white/5 rounded-lg text-xs">إلغاء</button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => setReplyingTo(t.id!)}
+                              className="text-xs text-brand-red font-bold hover:underline"
+                            >
+                              إضافة رد
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -2129,7 +2257,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                       />
                       {settingsForm.logoUrl && (
                         <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
-                          <img src={settingsForm.logoUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <img src={settingsForm.logoUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                         </div>
                       )}
                     </div>
@@ -2361,7 +2489,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                         />
                         {galleryForm.imageUrl && (
                           <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-white/10">
-                            <img src={galleryForm.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                            <img src={galleryForm.imageUrl} alt="Preview" className="w-full h-full object-cover" loading="lazy" />
                             <button 
                               type="button"
                               onClick={() => setGalleryForm({ ...galleryForm, imageUrl: '' })}
@@ -2619,7 +2747,7 @@ const FAQ = () => (
   </section>
 );
 
-const Footer = ({ settings }: { settings: AppSettings }) => {
+const Footer = React.memo(({ settings }: { settings: AppSettings }) => {
   const [visitors, setVisitors] = useState<number | null>(null);
 
   useEffect(() => {
@@ -2673,7 +2801,7 @@ const Footer = ({ settings }: { settings: AppSettings }) => {
           <div className="flex items-center gap-2 mb-6">
             <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
               {settings.logoUrl ? (
-                <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
               ) : (
                 <span className="text-brand-red font-display font-black text-xl italic tracking-tighter leading-none">
                   Dr.Fix
@@ -2766,9 +2894,9 @@ const Footer = ({ settings }: { settings: AppSettings }) => {
     </div>
   </footer>
   );
-};
+});
 
-const ProcessStep = ({ number, title, description }: { number: string, title: string, description: string }) => (
+const ProcessStep = React.memo(({ number, title, description }: { number: string, title: string, description: string }) => (
   <motion.div 
     whileHover={{ scale: 1.05, rotateZ: 1 }}
     className="relative p-8 glass-card border-white/5 hover:border-brand-red/30 transition-all group shadow-xl"
@@ -2787,7 +2915,7 @@ const ProcessStep = ({ number, title, description }: { number: string, title: st
     {/* 3D Depth effect */}
     <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl md:rounded-3xl" />
   </motion.div>
-);
+));
 
 const Process = () => (
   <section id="process" className="py-24 bg-brand-black relative overflow-hidden">
@@ -2823,7 +2951,7 @@ const Process = () => (
   </section>
 );
 
-const Stats = () => (
+const Stats = React.memo(() => (
   <section className="py-12 bg-brand-black border-y border-white/5">
     <div className="max-w-7xl mx-auto px-4 md:px-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
@@ -2861,7 +2989,7 @@ const Stats = () => (
       </div>
     </div>
   </section>
-);
+));
 
 export default function App() {
   return (
