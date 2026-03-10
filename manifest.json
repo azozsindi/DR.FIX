@@ -4,8 +4,11 @@
   "description": "مركز صيانة سيارات احترافي بجدة",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0A0A0A",
   "theme_color": "#E31837",
+  "lang": "ar",
+  "dir": "rtl",
   "icons": [
     {
       "src": "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&q=80&w=192",

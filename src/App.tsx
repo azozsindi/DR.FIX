@@ -468,7 +468,7 @@ const Hero = ({ settings }: { settings: AppSettings }) => {
             <span className="w-1.5 h-1.5 rounded-full bg-brand-red animate-pulse" />
             {t.hero.badge}
           </motion.div>
-          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-black leading-tight md:leading-[1.1] mb-4 md:mb-6 italic uppercase tracking-tighter">
+          <h1 className="text-xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-black leading-tight md:leading-[1.1] mb-4 md:mb-6 italic uppercase tracking-tighter">
             {t.hero.title} <br />
             <span className="text-brand-red relative inline-block">
               {t.hero.titleAccent}
@@ -480,11 +480,11 @@ const Hero = ({ settings }: { settings: AppSettings }) => {
               />
             </span>
           </h1>
-          <p className="text-base md:text-lg text-gray-400 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed">
+          <p className="text-sm md:text-base text-gray-400 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed">
             {t.hero.description}
           </p>
           <div className="flex flex-col sm:flex-row flex-wrap gap-4 justify-center lg:justify-start">
-            <Link to="/booking" className="px-8 py-4 bg-brand-red text-white font-display font-black rounded-xl red-glow-hover transition-all flex items-center justify-center gap-3 text-lg">
+            <Link to="/booking" className="px-8 py-4 bg-brand-red text-white font-display font-black rounded-xl red-glow-hover transition-all flex items-center justify-center gap-3 text-base">
               {t.hero.ctaBook}
               <Car className="w-6 h-6" />
             </Link>
@@ -567,7 +567,7 @@ const ServiceCard = React.memo(({ icon: Icon, title, description, onClick }: { i
       <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center mb-2 group-hover:bg-brand-red transition-all duration-500 relative z-10 shadow-xl shadow-black/20">
         <Icon className="w-4 h-4 text-brand-red group-hover:text-white transition-colors" />
       </div>
-      <h3 className="text-lg font-display font-black mb-2 italic uppercase tracking-tight relative z-10 group-hover:text-brand-red transition-colors whitespace-normal">{title}</h3>
+      <h3 className="text-base font-display font-black mb-2 italic uppercase tracking-tight relative z-10 group-hover:text-brand-red transition-colors whitespace-normal">{title}</h3>
       <p className="text-gray-400 text-[10px] leading-relaxed relative z-10 flex-1 whitespace-normal line-clamp-3">{description}</p>
       
       <div className={cn("mt-6 flex items-center gap-2 text-brand-red font-bold italic text-xs opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-2", lang === 'en' && "group-hover:-translate-x-2")} style={{ transform: 'translateZ(15px)' }}>
@@ -644,7 +644,7 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
       <div className="max-w-7xl mx-auto px-4 md:px-6">
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 md:mb-16 gap-4">
           <div className={cn("text-center md:text-right", lang === 'en' && "md:text-left")}>
-            <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+            <h2 className="text-2xl md:text-4xl font-display font-black mb-4 italic uppercase">
               {t.services.title} <span className="text-brand-red">{t.services.titleAccent}</span>
             </h2>
             <div className={cn("w-20 md:w-24 h-1.5 bg-brand-red mx-auto md:mx-0 rounded-full", lang === 'en' && "md:mr-0 md:ml-auto")} />
@@ -739,7 +739,7 @@ const Offers = () => {
     <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
         <div className={cn("text-center mb-16", lang === 'en' && "md:text-left")}>
-          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+          <h2 className="text-2xl md:text-4xl font-display font-black mb-4 italic uppercase">
             {t.offers.title} <span className="text-brand-red">{t.offers.titleAccent}</span>
           </h2>
           <div className={cn("w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full", lang === 'en' && "md:mr-0 md:ml-auto")} />
@@ -768,11 +768,11 @@ const Offers = () => {
                   {offer.icon === 'zap' ? <Zap className="w-6 h-6 text-brand-red group-hover:text-white transition-colors" /> : <Tag className="w-6 h-6 text-brand-red group-hover:text-white transition-colors" />}
                 </div>
                 <div className={cn("text-left", lang === 'ar' && "text-right")}>
-                  <span className="text-4xl font-display font-black text-brand-red italic drop-shadow-2xl">{offer.price}</span>
+                  <span className="text-3xl font-display font-black text-brand-red italic drop-shadow-2xl">{offer.price}</span>
                   {offer.subtitle && <div className="text-[10px] text-brand-red font-bold uppercase mt-1 tracking-widest">{offer.subtitle}</div>}
                 </div>
               </div>
-              <h3 className="text-xl font-display font-black mb-4 italic uppercase tracking-tight">
+              <h3 className="text-lg font-display font-black mb-4 italic uppercase tracking-tight">
                 {lang === 'ar' ? offer.title : (offer.titleEn || offer.title)}
               </h3>
               <ul className="space-y-3 text-gray-400 mb-8 flex-1">
@@ -838,7 +838,7 @@ const Gallery = () => {
     <section id="gallery" className="py-24 bg-brand-dark">
       <div className="max-w-7xl mx-auto px-4 md:px-6">
         <div className={cn("text-center mb-16", lang === 'en' && "md:text-left")}>
-          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+          <h2 className="text-2xl md:text-4xl font-display font-black mb-4 italic uppercase">
             {t.gallery.title} <span className="text-brand-red">{t.gallery.titleAccent}</span>
           </h2>
           <div className={cn("w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full", lang === 'en' && "md:mr-0 md:ml-auto")} />
@@ -961,7 +961,7 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
           style={{ transformStyle: 'preserve-3d' }}
         >
           <div className="text-center mb-10 md:mb-12">
-            <h2 className="text-3xl md:text-4xl font-display font-black mb-4 italic">احجز <span className="text-brand-red">موعدك</span></h2>
+            <h2 className="text-2xl md:text-3xl font-display font-black mb-4 italic">احجز <span className="text-brand-red">موعدك</span></h2>
             <p className="text-gray-400">أخبرنا عن مشكلة سيارتك وسنتواصل معك فوراً</p>
           </div>
 
@@ -1191,7 +1191,7 @@ const Testimonials = () => {
       <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
         <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-6">
           <div className={cn("text-center md:text-right", lang === 'en' && "md:text-left")}>
-            <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+            <h2 className="text-2xl md:text-4xl font-display font-black mb-4 italic uppercase">
               {t.testimonials.title} <span className="text-brand-red">{t.testimonials.titleAccent}</span>
             </h2>
             <div className={cn("w-20 md:w-24 h-1.5 bg-brand-red mx-auto md:mx-0 rounded-full", lang === 'en' && "md:mr-0 md:ml-auto")} />
@@ -2943,7 +2943,7 @@ const FAQItem = ({ question, answer }: { question: string, answer: string }) => 
         onClick={() => setIsOpen(!isOpen)}
         className="w-full py-6 flex justify-between items-center text-right hover:text-brand-red transition-colors"
       >
-        <span className="text-lg font-bold">{question}</span>
+        <span className="text-base font-bold">{question}</span>
         <ChevronDown className={cn("w-5 h-5 transition-transform", isOpen && "rotate-180")} />
       </button>
       <AnimatePresence>
@@ -2966,7 +2966,7 @@ const FAQ = () => (
   <section id="faq" className="py-24 bg-brand-black">
     <div className="max-w-3xl mx-auto px-4 md:px-6">
       <div className="text-center mb-16">
-        <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">الأسئلة <span className="text-brand-red">الشائعة</span></h2>
+        <h2 className="text-2xl md:text-4xl font-display font-black mb-4 italic uppercase">الأسئلة <span className="text-brand-red">الشائعة</span></h2>
         <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
       </div>
 
@@ -3146,11 +3146,11 @@ const ProcessStep = React.memo(({ number, title, description }: { number: string
     <motion.div 
       initial={{ scale: 0.8 }}
       whileInView={{ scale: 1 }}
-      className="absolute -top-6 -right-6 w-12 h-12 bg-brand-red rounded-full flex items-center justify-center text-xl font-display font-black italic shadow-lg z-10"
+      className="absolute -top-6 -right-6 w-12 h-12 bg-brand-red rounded-full flex items-center justify-center text-lg font-display font-black italic shadow-lg z-10"
     >
       {number}
     </motion.div>
-    <h3 className="text-xl font-display font-bold mb-3 mt-2">{title}</h3>
+    <h3 className="text-lg font-display font-bold mb-3 mt-2">{title}</h3>
     <p className="text-gray-400 text-sm leading-relaxed">{description}</p>
     
     {/* 3D Depth effect */}
@@ -3164,7 +3164,7 @@ const Process = () => {
     <section id="process" className="py-24 bg-brand-black relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
         <div className={cn("text-center mb-16", lang === 'en' && "md:text-left")}>
-          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+          <h2 className="text-2xl md:text-4xl font-display font-black mb-4 italic uppercase">
             {t.process.title} <span className="text-brand-red">{t.process.titleAccent}</span>
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto">{t.process.description}</p>
@@ -3209,7 +3209,7 @@ const Stats = React.memo(() => {
             viewport={{ once: true }}
             className="text-center"
           >
-            <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">+5000</div>
+            <div className="text-3xl md:text-4xl font-display font-black text-brand-red mb-2">+5000</div>
             <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">{t.stats.customers}</div>
           </motion.div>
           
@@ -3220,7 +3220,7 @@ const Stats = React.memo(() => {
             transition={{ delay: 0.1 }}
             className="text-center"
           >
-            <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">100%</div>
+            <div className="text-3xl md:text-4xl font-display font-black text-brand-red mb-2">100%</div>
             <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">{t.stats.wash}</div>
           </motion.div>
           
@@ -3231,7 +3231,7 @@ const Stats = React.memo(() => {
             transition={{ delay: 0.2 }}
             className="text-center"
           >
-            <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">+10</div>
+            <div className="text-3xl md:text-4xl font-display font-black text-brand-red mb-2">+10</div>
             <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">{t.stats.experience}</div>
           </motion.div>
         </div>
@@ -3257,6 +3257,33 @@ function MainContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { lang } = useLanguage();
+
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setShowInstallPrompt(false);
+    }
+  };
 
   useEffect(() => {
     // Listen for settings updates
@@ -3332,6 +3359,43 @@ function MainContent() {
       </main>
 
       <Footer settings={settings} />
+      
+      <AnimatePresence>
+        {showInstallPrompt && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-24 left-4 right-4 z-50 md:left-auto md:right-8 md:w-80"
+          >
+            <div className="glass-card p-4 border-brand-red/30 shadow-2xl bg-brand-black/90 backdrop-blur-xl">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-brand-red rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Car className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold mb-1">تثبيت تطبيق Dr. Fix</h4>
+                  <p className="text-xs text-gray-400 mb-3">ثبت التطبيق على شاشة جوالك للوصول السريع لخدماتنا</p>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleInstallClick}
+                      className="flex-1 py-2 bg-brand-red text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-all"
+                    >
+                      تثبيت الآن
+                    </button>
+                    <button 
+                      onClick={() => setShowInstallPrompt(false)}
+                      className="px-3 py-2 bg-white/5 text-gray-400 text-xs font-bold rounded-lg hover:bg-white/10 transition-all"
+                    >
+                      لاحقاً
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Floating Action Buttons for Mobile */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4">

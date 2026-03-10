@@ -33,7 +33,8 @@ export const translations = {
       badge: "عروض حصرية",
       title: "باقات التوفير",
       description: "استفد من أقوى العروض والخصومات على خدمات الصيانة الدورية.",
-      getOffer: "احصل على العرض"
+      getOffer: "احصل على العرض",
+      claimOffer: "احجز العرض الآن"
     },
     gallery: {
       badge: "معرض أعمالنا",
@@ -241,7 +242,8 @@ export const translations = {
       badge: "Exclusive Offers",
       title: "Savings Packages",
       description: "Take advantage of the best offers and discounts on periodic maintenance services.",
-      getOffer: "Get Offer"
+      getOffer: "Get Offer",
+      claimOffer: "Claim Offer Now"
     },
     gallery: {
       badge: "Our Work Gallery",
