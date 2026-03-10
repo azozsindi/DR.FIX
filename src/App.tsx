@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { 
@@ -42,7 +42,10 @@ import {
   User,
   MessageSquare,
   AlertCircle,
+  Bell,
   ArrowRight,
+  ArrowUp,
+  Globe,
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { cn } from './lib/utils';
@@ -87,6 +90,46 @@ import {
   User as FirebaseUser
 } from 'firebase/auth';
 import { auth, db } from './firebase';
+import { translations } from './translations';
+
+// Language Context
+type Language = 'ar' | 'en';
+interface LanguageContextType {
+  lang: Language;
+  setLang: (lang: Language) => void;
+  t: any;
+}
+const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+const useLanguage = () => {
+  const context = useContext(LanguageContext);
+  if (!context) throw new Error('useLanguage must be used within a LanguageProvider');
+  return context;
+};
+
+const LanguageProvider = ({ children }: { children: React.ReactNode }) => {
+  const [lang, setLang] = useState<Language>('ar');
+  const t = translations[lang];
+
+  return (
+    <LanguageContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+};
+
+const LanguageToggle = () => {
+  const { lang, setLang } = useLanguage();
+  return (
+    <button
+      onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+      className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-bold hover:bg-white/10 transition-all flex items-center gap-2"
+    >
+      <Globe className="w-3.5 h-3.5" />
+      {lang === 'ar' ? 'English' : 'العربية'}
+    </button>
+  );
+};
 
 // --- Error Handling ---
 enum OperationType {
@@ -244,21 +287,77 @@ const LoginPage = ({ onLogin }: { onLogin: () => void }) => {
 interface AppSettings {
   logoUrl?: string;
   siteName?: string;
+  heroImageUrl?: string;
+  tickerText?: string;
 }
+
+const compressImage = (base64Str: string, maxWidth = 1200, maxHeight = 1200, quality = 0.7): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height *= maxWidth / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width *= maxHeight / height;
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+  });
+};
+
+const Ticker = ({ settings }: { settings: AppSettings }) => {
+  const { t } = useLanguage();
+  const tickerContent = settings.tickerText || `${t.hero.badge} • ${t.stats.wash} • ${t.footer.available} • DR. FIX AUTO SERVICES • ${t.footer.description.slice(0, 50)}... • ${t.process.description}`;
+  
+  return (
+    <div className="bg-brand-red py-1.5 overflow-hidden whitespace-nowrap fixed top-0 left-0 right-0 z-[60] shadow-lg">
+      <motion.div 
+        animate={{ x: [0, -2000] }}
+        transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+        className="inline-flex items-center gap-12 text-white font-bold text-[10px] md:text-xs italic uppercase tracking-widest"
+      >
+        {[...Array(10)].map((_, i) => (
+          <React.Fragment key={i}>
+            <span>{tickerContent}</span>
+            <div className="w-1 h-1 rounded-full bg-white/50" />
+          </React.Fragment>
+        ))}
+      </motion.div>
+    </div>
+  );
+};
 
 const Navbar = ({ settings }: { settings: AppSettings }) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const { t, lang } = useLanguage();
 
   const navLinks = [
-    { name: 'الرئيسية', path: '/' },
-    { name: 'الخدمات', path: '/services' },
-    { name: 'العروض', path: '/offers' },
-    { name: 'سجل الصيانة', path: '/history' },
+    { name: t.nav.home, path: '/' },
+    { name: t.nav.services, path: '/#services' },
+    { name: t.nav.offers, path: '/#offers' },
+    { name: t.nav.gallery, path: '/#gallery' },
+    { name: t.nav.history, path: '/history' },
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-brand-black/80 backdrop-blur-lg border-b border-white/5">
+    <nav className="fixed top-7 md:top-8 left-0 right-0 z-50 bg-brand-black/80 backdrop-blur-lg border-b border-white/5" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex justify-between items-center">
         <Link to="/" className="flex items-center gap-2">
           <div className="relative flex items-center justify-center">
@@ -285,16 +384,21 @@ const Navbar = ({ settings }: { settings: AppSettings }) => {
               {link.name}
             </Link>
           ))}
-          <Link to="/booking" className="px-4 py-2 bg-brand-red rounded-full text-white font-display font-bold red-glow-hover transition-all">احجز موعداً</Link>
+          <div className="h-6 w-px bg-white/10" />
+          <LanguageToggle />
+          <Link to="/booking" className="px-4 py-2 bg-brand-red rounded-full text-white font-display font-bold red-glow-hover transition-all">{t.nav.bookNow}</Link>
         </div>
 
         {/* Mobile Menu Toggle */}
-        <button 
-          onClick={() => setIsOpen(!isOpen)}
-          className="md:hidden p-2 text-white hover:text-brand-red transition-colors"
-        >
-          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center gap-4 md:hidden">
+          <LanguageToggle />
+          <button 
+            onClick={() => setIsOpen(!isOpen)}
+            className="p-2 text-white hover:text-brand-red transition-colors"
+          >
+            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu Overlay */}
@@ -317,7 +421,7 @@ const Navbar = ({ settings }: { settings: AppSettings }) => {
                   {link.name}
                 </Link>
               ))}
-              <Link to="/booking" onClick={() => setIsOpen(false)} className="bg-brand-red px-6 py-3 rounded-xl text-center font-display">احجز موعداً</Link>
+              <Link to="/booking" onClick={() => setIsOpen(false)} className="bg-brand-red px-6 py-3 rounded-xl text-center font-display">{t.nav.bookNow}</Link>
               <Link 
                 to="/admin"
                 onClick={() => setIsOpen(false)}
@@ -333,11 +437,14 @@ const Navbar = ({ settings }: { settings: AppSettings }) => {
   );
 };
 
-const Hero = () => (
-  <section className="relative min-h-screen flex items-center pt-24 md:pt-20 overflow-hidden">
+const Hero = ({ settings }: { settings: AppSettings }) => {
+  const { t, lang } = useLanguage();
+  return (
+    <section className="relative min-h-screen flex items-center pt-24 md:pt-20 overflow-hidden">
     {/* Background Pattern */}
-    <div className="absolute inset-0 z-0 opacity-10 md:opacity-20 pointer-events-none">
+    <div className="absolute inset-0 z-0 opacity-10 md:opacity-20 pointer-events-none overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-brand-red/20 via-transparent to-transparent" />
+      
       <div className="grid grid-cols-6 md:grid-cols-12 h-full w-full border-x border-white/5">
         {[...Array(12)].map((_, i) => (
           <div key={i} className="border-r border-white/5 h-full" />
@@ -346,139 +453,144 @@ const Hero = () => (
     </div>
 
     <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10 grid lg:grid-cols-2 gap-12 items-center">
-      <motion.div 
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-        className="text-center lg:text-right"
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5 }}
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-red/10 border border-brand-red/20 text-brand-red text-xs sm:text-sm md:text-base font-bold mb-4 md:mb-6"
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className={cn("text-center lg:text-right", lang === 'en' && "lg:text-left")}
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-brand-red animate-pulse" />
-          تحت إشراف المهندس محمد سندي
-        </motion.div>
-        <h1 className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-display font-black leading-tight md:leading-[1.1] mb-4 md:mb-6 italic uppercase tracking-tighter">
-          نصلح سيارتك <br />
-          <span className="text-brand-red relative inline-block">
-            في بيتك
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: '100%' }}
-              transition={{ delay: 1, duration: 0.8 }}
-              className="absolute -bottom-2 left-0 h-2 bg-white/10 rounded-full"
-            />
-          </span>
-        </h1>
-        <p className="text-lg md:text-xl text-gray-400 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed">
-          مركز Dr. Fix في جدة: نستلم سيارتك من بيتك، نسوي الصيانة، نغسلها، ونسلمها لباب بيتك. خدمة احترافية على مدار 24 ساعة.
-        </p>
-        <div className="flex flex-col sm:flex-row flex-wrap gap-4 justify-center lg:justify-start">
-          <Link to="/booking" className="px-8 py-4 bg-brand-red text-white font-display font-black rounded-xl red-glow-hover transition-all flex items-center justify-center gap-3 text-lg">
-            احجز موعدك الآن
-            <Car className="w-6 h-6" />
-          </Link>
-          <div className="flex gap-2">
-            <a href="tel:0546870807" className="flex-1 px-6 py-4 border border-white/10 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-white/5 transition-all cursor-pointer" title="اتصال هاتفي">
-              اتصل بنا
-              <Phone className="w-5 h-5" />
-            </a>
-            <a href="https://wa.me/966546870807" target="_blank" rel="noopener noreferrer" className="px-6 py-4 bg-[#25D366] text-white rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-[#128C7E] transition-all cursor-pointer shadow-lg shadow-green-500/20" title="واتساب">
-              <MessageCircle className="w-5 h-5" />
-            </a>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5 }}
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-red/10 border border-brand-red/20 text-brand-red text-xs sm:text-sm md:text-base font-bold mb-4 md:mb-6"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-red animate-pulse" />
+            {t.hero.badge}
+          </motion.div>
+          <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-black leading-tight md:leading-[1.1] mb-4 md:mb-6 italic uppercase tracking-tighter">
+            {t.hero.title} <br />
+            <span className="text-brand-red relative inline-block">
+              {t.hero.titleAccent}
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: '100%' }}
+                transition={{ delay: 1, duration: 0.8 }}
+                className="absolute -bottom-1 left-0 h-1.5 bg-white/10 rounded-full"
+              />
+            </span>
+          </h1>
+          <p className="text-base md:text-lg text-gray-400 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed">
+            {t.hero.description}
+          </p>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-4 justify-center lg:justify-start">
+            <Link to="/booking" className="px-8 py-4 bg-brand-red text-white font-display font-black rounded-xl red-glow-hover transition-all flex items-center justify-center gap-3 text-lg">
+              {t.hero.ctaBook}
+              <Car className="w-6 h-6" />
+            </Link>
+            <div className="flex gap-2">
+              <a href="tel:0546870807" className="flex-1 px-6 py-4 border border-white/10 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-white/5 transition-all cursor-pointer" title="اتصال هاتفي">
+                {t.hero.ctaServices}
+                <Phone className="w-5 h-5" />
+              </a>
+              <a href="https://wa.me/966546870807" target="_blank" rel="noopener noreferrer" className="px-6 py-4 bg-[#25D366] text-white rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-[#128C7E] transition-all cursor-pointer shadow-lg shadow-green-500/20" title="واتساب">
+                <MessageCircle className="w-5 h-5" />
+              </a>
+            </div>
           </div>
-        </div>
-      </motion.div>
+          
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5 }}
+            className="mt-12 text-[10px] md:text-xs text-gray-600 italic font-medium"
+          >
+            {t.hero.prayer}
+          </motion.p>
+        </motion.div>
 
       <motion.div 
-        initial={{ opacity: 0, rotateY: 20, rotateX: 10, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.9 }}
         animate={{ 
           opacity: 1, 
-          rotateY: 0, 
-          rotateX: 0, 
           scale: 1,
-          y: [0, -20, 0]
+          y: [0, -15, 0]
         }}
         transition={{ 
-          duration: 1, 
+          duration: 1.2, 
           delay: 0.2,
           y: {
-            duration: 4,
+            duration: 5,
             repeat: Infinity,
             ease: "easeInOut"
           }
         }}
         className="relative px-4 md:px-0"
-        style={{ transformStyle: 'preserve-3d' }}
       >
         <div className="relative z-10 rounded-2xl md:rounded-3xl overflow-hidden border border-white/10 red-glow shadow-2xl">
           <img 
-            src="https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&q=80&w=1000" 
+            src={settings.heroImageUrl || "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&q=80&w=1000"} 
             alt="Car Maintenance" 
-            className="w-full h-[250px] sm:h-[350px] md:h-[500px] object-cover"
+            className="w-full h-[200px] sm:h-[300px] md:h-[400px] object-cover"
             referrerPolicy="no-referrer"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-transparent to-transparent opacity-40" />
         </div>
-        {/* Decorative elements with 3D depth */}
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-10 -right-10 w-40 h-40 border border-brand-red/20 rounded-full border-dashed"
-        />
+        
         <div className="absolute -top-5 -right-5 md:-top-10 md:-right-10 w-24 h-24 md:w-40 md:h-40 bg-brand-red/20 blur-3xl rounded-full" />
         <div className="absolute -bottom-5 -left-5 md:-bottom-10 md:-left-10 w-32 h-32 md:w-60 md:h-60 bg-brand-red/10 blur-3xl rounded-full" />
       </motion.div>
     </div>
   </section>
-);
+  );
+};
 
-const ServiceCard = React.memo(({ icon: Icon, title, description, onClick }: { icon: any, title: string, description: string, onClick?: () => void }) => (
-  <motion.div 
-    whileHover={{ 
-      y: -10,
-      rotateX: 5,
-      rotateY: -5,
-      scale: 1.02
-    }}
-    whileTap={{ scale: 0.98 }}
-    onClick={onClick}
-    className="glass-card p-6 md:p-8 group hover:border-brand-red/50 transition-all cursor-pointer relative overflow-hidden"
-    style={{ transformStyle: 'preserve-3d' }}
-  >
-    <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-brand-red/10 transition-colors" />
-    
-    <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center mb-3 group-hover:bg-brand-red transition-colors relative z-10 shadow-lg">
-      <Icon className="w-4 h-4 text-brand-red group-hover:text-white transition-colors" />
-    </div>
-    <h3 className="text-xl font-display font-bold mb-3 relative z-10">{title}</h3>
-    <p className="text-gray-400 text-sm leading-relaxed relative z-10">{description}</p>
-    
-    <div className="absolute bottom-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity">
-      <div className="w-8 h-8 rounded-full bg-brand-red/20 flex items-center justify-center">
-        <ChevronDown className="w-4 h-4 text-brand-red -rotate-90" />
+const ServiceCard = React.memo(({ icon: Icon, title, description, onClick }: { icon: any, title: string, description: string, onClick?: () => void }) => {
+  const { t, lang } = useLanguage();
+  return (
+    <motion.div 
+      whileHover={{ 
+        y: -15,
+        rotateX: 8,
+        rotateY: -8,
+        scale: 1.05,
+        transition: { type: "spring", stiffness: 400, damping: 20 }
+      }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className="glass-card p-4 md:p-5 group hover:border-brand-red/50 transition-all cursor-pointer relative overflow-hidden h-full flex flex-col whitespace-normal"
+      style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
+    >
+      <div className="absolute top-0 right-0 w-32 h-32 bg-brand-red/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-brand-red/10 transition-colors" />
+      
+      <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center mb-2 group-hover:bg-brand-red transition-all duration-500 relative z-10 shadow-xl shadow-black/20">
+        <Icon className="w-4 h-4 text-brand-red group-hover:text-white transition-colors" />
       </div>
-    </div>
-  </motion.div>
-));
+      <h3 className="text-lg font-display font-black mb-2 italic uppercase tracking-tight relative z-10 group-hover:text-brand-red transition-colors whitespace-normal">{title}</h3>
+      <p className="text-gray-400 text-[10px] leading-relaxed relative z-10 flex-1 whitespace-normal line-clamp-3">{description}</p>
+      
+      <div className={cn("mt-6 flex items-center gap-2 text-brand-red font-bold italic text-xs opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-2", lang === 'en' && "group-hover:-translate-x-2")} style={{ transform: 'translateZ(15px)' }}>
+        <span>{t.services.bookNow}</span>
+      </div>
+    </motion.div>
+  );
+});
 
 const STATIC_SERVICES = [
-  { id: 's1', title: 'خدمة من الباب للباب', description: 'نستلم سيارتك من بيتك، نسوي الصيانة اللازمة، نغسلها، ونسلمها لك جاهزة.', icon: 'Car' },
-  { id: 's2', title: 'ميكانيكا عامة', description: 'إصلاح المحركات، الجيربوكس، وأنظمة التعليق بأعلى معايير الجودة.', icon: 'Wrench' },
-  { id: 's3', title: 'كهرباء وبرمجة', description: 'فحص كمبيوتر، برمجة مفاتيح، وإصلاح كافة المشاكل الكهربائية المعقدة.', icon: 'Zap' },
-  { id: 's4', title: 'تكييف وتبريد', description: 'فحص تسريب الفريون، تعبئة فريون أصلي، وإصلاح الكمبروسر.', icon: 'Cpu' },
-  { id: 's5', title: 'سمكرة وطلاء', description: 'إصلاح الصدمات وطلاء فرن حراري بأجود أنواع البويات العالمية.', icon: 'Hammer' },
-  { id: 's6', title: 'فحص قبل الشراء', description: 'فحص شامل للسيارة (ميكانيكا، كهرباء، بودي) مع تقرير مفصل.', icon: 'Shield' },
+  { id: 's1', title: 'خدمة من الباب للباب', titleEn: 'Door to Door Service', description: 'نستلم سيارتك من بيتك، نسوي الصيانة اللازمة، نغسلها، ونسلمها لك جاهزة.', descriptionEn: 'We pick up your car, perform maintenance, wash it, and deliver it back.', icon: 'Car' },
+  { id: 's2', title: 'ميكانيكا عامة', titleEn: 'General Mechanics', description: 'إصلاح المحركات، الجيربوكس، وأنظمة التعليق بأعلى معايير الجودة.', descriptionEn: 'Engine, gearbox, and suspension repairs with high quality standards.', icon: 'Wrench' },
+  { id: 's3', title: 'كهرباء وبرمجة', titleEn: 'Electrical & Programming', description: 'فحص كمبيوتر، برمجة مفاتيح، وإصلاح كافة المشاكل الكهربائية المعقدة.', descriptionEn: 'Computer diagnostics, key programming, and complex electrical repairs.', icon: 'Zap' },
+  { id: 's4', title: 'تكييف وتبريد', titleEn: 'AC & Cooling', description: 'فحص تسريب الفريون، تعبئة فريون أصلي، وإصلاح الكمبروسر.', descriptionEn: 'Freon leak check, original freon refill, and compressor repair.', icon: 'Cpu' },
+  { id: 's5', title: 'سمكرة وطلاء', titleEn: 'Body & Paint', description: 'إصلاح الصدمات وطلاء فرن حراري بأجود أنواع البويات العالمية.', descriptionEn: 'Accident repair and thermal oven painting with top-quality paints.', icon: 'Hammer' },
+  { id: 's6', title: 'فحص قبل الشراء', titleEn: 'Pre-purchase Inspection', description: 'فحص شامل للسيارة (ميكانيكا، كهرباء، بودي) مع تقرير مفصل.', descriptionEn: 'Comprehensive car inspection (mechanics, electrical, body) with a detailed report.', icon: 'Shield' },
 ];
 
 const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void }) => {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { t, lang } = useLanguage();
 
   useEffect(() => {
     const q = query(collection(db, 'services'));
@@ -531,41 +643,37 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
     <section id="services" className="py-16 md:py-24 bg-brand-dark relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 md:px-6">
         <div className="flex flex-col md:flex-row justify-between items-center mb-12 md:mb-16 gap-4">
-          <div className="text-center md:text-right">
-            <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">خدماتنا <span className="text-brand-red">الشاملة</span></h2>
-            <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto md:mx-0 rounded-full" />
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => scroll('right')}
-              className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-red hover:border-brand-red transition-all group"
-            >
-              <ChevronRight className="w-6 h-6 group-hover:scale-110 transition-transform" />
-            </button>
-            <button 
-              onClick={() => scroll('left')}
-              className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-red hover:border-brand-red transition-all group"
-            >
-              <ChevronLeft className="w-6 h-6 group-hover:scale-110 transition-transform" />
-            </button>
+          <div className={cn("text-center md:text-right", lang === 'en' && "md:text-left")}>
+            <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+              {t.services.title} <span className="text-brand-red">{t.services.titleAccent}</span>
+            </h2>
+            <div className={cn("w-20 md:w-24 h-1.5 bg-brand-red mx-auto md:mx-0 rounded-full", lang === 'en' && "md:mr-0 md:ml-auto")} />
           </div>
         </div>
 
-        <div 
-          ref={scrollRef}
-          className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar cursor-grab active:cursor-grabbing"
-        >
-          {allServices.map((service) => (
-            <div key={service.id} className="min-w-[280px] md:min-w-[350px] snap-center">
-              <ServiceCard 
-                icon={getIcon(service.icon)} 
-                title={service.title} 
-                description={service.description}
-                onClick={() => onServiceSelect(service.title)}
-              />
-            </div>
-          ))}
+        <div className="relative overflow-hidden">
+          <motion.div 
+            animate={{ 
+              x: lang === 'ar' ? [0, 1000] : [0, -1000] 
+            }}
+            transition={{ 
+              duration: 30, 
+              repeat: Infinity, 
+              ease: "linear" 
+            }}
+            className="flex gap-6 md:gap-8 whitespace-nowrap py-4"
+          >
+            {[...allServices, ...allServices].map((service, idx) => (
+              <div key={`${service.id}-${idx}`} className="min-w-[280px] md:min-w-[320px] h-[180px] flex-shrink-0">
+                <ServiceCard 
+                  icon={getIcon(service.icon)} 
+                  title={lang === 'ar' ? service.title : (service.titleEn || service.title)} 
+                  description={lang === 'ar' ? service.description : (service.descriptionEn || service.description)}
+                  onClick={() => onServiceSelect(service.title)}
+                />
+              </div>
+            ))}
+          </motion.div>
         </div>
       </div>
     </section>
@@ -575,22 +683,26 @@ const Services = ({ onServiceSelect }: { onServiceSelect: (type: string) => void
 interface Offer {
   id: string;
   title: string;
+  titleEn?: string;
   price: string;
   subtitle?: string;
+  subtitleEn?: string;
   features: string[];
+  featuresEn?: string[];
   icon: 'tag' | 'zap';
   active?: boolean;
   createdAt: Timestamp;
 }
 
 const STATIC_OFFERS: Offer[] = [
-  { id: 'o1', title: 'فحص شامل للسيارة', price: '199', subtitle: 'ريال فقط', features: ['فحص الميكانيكا', 'فحص الكهرباء', 'فحص البودي', 'تقرير مفصل'], icon: 'zap', createdAt: Timestamp.now(), active: true },
-  { id: 'o2', title: 'تغيير زيت وفلتر', price: '250', subtitle: 'ريال شامل', features: ['زيت أصلي', 'فلتر وكالة', 'فحص السوائل', 'غسيل مجاني'], icon: 'tag', createdAt: Timestamp.now(), active: true },
+  { id: 'o1', title: 'فحص شامل للسيارة', titleEn: 'Comprehensive Inspection', price: '199', subtitle: 'ريال فقط', subtitleEn: 'SAR only', features: ['فحص الميكانيكا', 'فحص الكهرباء', 'فحص البودي', 'تقرير مفصل'], featuresEn: ['Mechanical check', 'Electrical check', 'Body check', 'Detailed report'], icon: 'zap', createdAt: Timestamp.now(), active: true },
+  { id: 'o2', title: 'تغيير زيت وفلتر', titleEn: 'Oil & Filter Change', price: '250', subtitle: 'ريال شامل', subtitleEn: 'SAR inclusive', features: ['زيت أصلي', 'فلتر وكالة', 'فحص السوائل', 'غسيل مجاني'], featuresEn: ['Original oil', 'Genuine filter', 'Fluids check', 'Free wash'], icon: 'tag', createdAt: Timestamp.now(), active: true },
 ];
 
 const Offers = () => {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t, lang } = useLanguage();
 
   useEffect(() => {
     const q = query(collection(db, 'offers'), orderBy('createdAt', 'desc'));
@@ -626,43 +738,53 @@ const Offers = () => {
   return (
     <section id="offers" className="py-24 bg-brand-black relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">عروض <span className="text-brand-red">خاصة</span></h2>
-          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+        <div className={cn("text-center mb-16", lang === 'en' && "md:text-left")}>
+          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+            {t.offers.title} <span className="text-brand-red">{t.offers.titleAccent}</span>
+          </h2>
+          <div className={cn("w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full", lang === 'en' && "md:mr-0 md:ml-auto")} />
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {allOffers.map((offer) => (
             <motion.div 
               key={offer.id}
-              whileHover={{ y: -10 }}
+              whileHover={{ 
+                y: -15,
+                rotateX: 5,
+                rotateY: 5,
+                scale: 1.03,
+                transition: { type: "spring", stiffness: 400, damping: 20 }
+              }}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
-              className="glass-card p-8 border-brand-red/20 relative overflow-hidden group"
+              className="glass-card p-8 border-brand-red/20 relative overflow-hidden group h-full flex flex-col"
+              style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
             >
-              <div className="absolute top-0 left-0 w-full h-1 bg-brand-red" />
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-red shadow-[0_0_15px_rgba(255,51,51,0.5)]" />
               <div className="flex justify-between items-start mb-6">
-                <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center">
-                  {offer.icon === 'zap' ? <Zap className="w-6 h-6 text-brand-red" /> : <Tag className="w-6 h-6 text-brand-red" />}
+                <div className="w-12 h-12 bg-brand-red/10 rounded-xl flex items-center justify-center group-hover:bg-brand-red transition-all duration-500 shadow-xl shadow-black/20">
+                  {offer.icon === 'zap' ? <Zap className="w-6 h-6 text-brand-red group-hover:text-white transition-colors" /> : <Tag className="w-6 h-6 text-brand-red group-hover:text-white transition-colors" />}
                 </div>
-                <div className="text-left">
-                  <span className="text-4xl font-display font-black text-brand-red">{offer.price}</span>
-                  {offer.subtitle && <div className="text-[10px] text-brand-red font-bold uppercase mt-1">{offer.subtitle}</div>}
+                <div className={cn("text-left", lang === 'ar' && "text-right")}>
+                  <span className="text-4xl font-display font-black text-brand-red italic drop-shadow-2xl">{offer.price}</span>
+                  {offer.subtitle && <div className="text-[10px] text-brand-red font-bold uppercase mt-1 tracking-widest">{offer.subtitle}</div>}
                 </div>
               </div>
-              <h3 className="text-2xl font-display font-black mb-4 italic">{offer.title}</h3>
-              <ul className="space-y-3 text-gray-400 mb-8">
-                {offer.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-brand-red" />
-                    {feature}
+              <h3 className="text-xl font-display font-black mb-4 italic uppercase tracking-tight">
+                {lang === 'ar' ? offer.title : (offer.titleEn || offer.title)}
+              </h3>
+              <ul className="space-y-3 text-gray-400 mb-8 flex-1">
+                {(lang === 'ar' ? offer.features : (offer.featuresEn || offer.features)).map((feature: string, idx: number) => (
+                  <li key={idx} className="flex items-center gap-2 font-medium">
+                    <CheckCircle2 className="w-4 h-4 text-brand-red flex-shrink-0" />
+                    <span className="text-xs">{feature}</span>
                   </li>
                 ))}
               </ul>
-              <Link to="/booking" className="inline-flex items-center gap-2 text-brand-red font-bold group-hover:gap-4 transition-all">
-                احجز هذا العرض الآن
-                <ChevronDown className="w-4 h-4 -rotate-90" />
+              <Link to="/booking" className="w-full py-4 bg-white/5 border border-white/10 rounded-xl font-display font-black italic text-center hover:bg-brand-red hover:border-brand-red transition-all group-hover:shadow-lg group-hover:shadow-brand-red/20" style={{ transform: 'translateZ(25px)' }}>
+                {t.offers.claimOffer}
               </Link>
             </motion.div>
           ))}
@@ -682,6 +804,7 @@ const STATIC_GALLERY: GalleryItem[] = [
 const Gallery = () => {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t, lang } = useLanguage();
 
   useEffect(() => {
     const q = query(collection(db, 'gallery'), orderBy('createdAt', 'desc'), limit(8));
@@ -714,10 +837,12 @@ const Gallery = () => {
   return (
     <section id="gallery" className="py-24 bg-brand-dark">
       <div className="max-w-7xl mx-auto px-4 md:px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">معرض <span className="text-brand-red">الأعمال</span></h2>
-          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
-          <p className="mt-6 text-gray-400">نفتخر بمشاركة بعض من أعمالنا الأخيرة معكم</p>
+        <div className={cn("text-center mb-16", lang === 'en' && "md:text-left")}>
+          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+            {t.gallery.title} <span className="text-brand-red">{t.gallery.titleAccent}</span>
+          </h2>
+          <div className={cn("w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full", lang === 'en' && "md:mr-0 md:ml-auto")} />
+          <p className="mt-6 text-gray-400">{t.gallery.description}</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -732,14 +857,18 @@ const Gallery = () => {
             >
               <img 
                 src={item.imageUrl} 
-                alt={item.title} 
+                alt={lang === 'ar' ? item.title : (item.titleEn || item.title)} 
                 loading="lazy"
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 referrerPolicy="no-referrer"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6">
-                <span className="text-brand-red text-xs font-bold uppercase tracking-widest mb-1">{item.category}</span>
-                <h4 className="text-white font-bold">{item.title}</h4>
+                <span className="text-brand-red text-xs font-bold uppercase tracking-widest mb-1">
+                  {lang === 'ar' ? item.category : (item.categoryEn || item.category)}
+                </span>
+                <h4 className="text-white font-bold">
+                  {lang === 'ar' ? item.title : (item.titleEn || item.title)}
+                </h4>
               </div>
             </motion.div>
           ))}
@@ -843,6 +972,7 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
                 <input 
                   {...register('carMake', { required: true })}
                   placeholder="مثال: تويوتا"
+                  autoComplete="organization"
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red focus:outline-none transition-all text-sm md:text-base"
                 />
               </div>
@@ -851,6 +981,7 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
                 <input 
                   {...register('carModel', { required: true })}
                   placeholder="مثال: كامري"
+                  autoComplete="model"
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red focus:outline-none transition-all text-sm md:text-base"
                 />
               </div>
@@ -911,6 +1042,7 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
                 {...register('phone', { required: true })}
                 type="tel"
                 placeholder="05xxxxxxxx"
+                autoComplete="tel"
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:border-brand-red focus:outline-none transition-all text-sm md:text-base"
               />
             </div>
@@ -981,19 +1113,19 @@ const BookingForm = ({ selectedService }: { selectedService?: string }) => {
 const TestimonialCard = React.memo(({ name, comment, rating, reply }: { name: string, comment: string, rating: number, reply?: string }) => (
   <motion.div 
     whileHover={{ y: -5 }}
-    className="glass-card p-6 border-white/5 hover:border-brand-red/30 transition-all shadow-xl h-full flex flex-col"
+    className="glass-card p-4 border-white/5 hover:border-brand-red/30 transition-all shadow-xl h-full flex flex-col overflow-hidden whitespace-normal"
   >
-    <div className="flex gap-1 mb-4">
+    <div className="flex gap-1 mb-2">
       {[...Array(5)].map((_, i) => (
         <Star key={i} className={cn("w-4 h-4", i < rating ? "text-yellow-500 fill-yellow-500" : "text-gray-600")} />
       ))}
     </div>
-    <p className="text-gray-300 italic mb-6 leading-relaxed flex-grow">"{comment}"</p>
+    <p className="text-gray-300 text-xs italic mb-4 leading-relaxed flex-grow whitespace-normal line-clamp-4">"{comment}"</p>
     
     {reply && (
-      <div className="mb-6 bg-brand-red/5 border-r-2 border-brand-red p-4 rounded-l-xl">
-        <div className="text-[10px] font-bold text-brand-red uppercase tracking-widest mb-1">رد الإدارة</div>
-        <p className="text-gray-400 text-sm italic">{reply}</p>
+      <div className="mb-3 bg-brand-red/5 border-r-2 border-brand-red p-2 rounded-l-xl">
+        <div className="text-[9px] font-bold text-brand-red uppercase tracking-widest mb-1">رد الإدارة</div>
+        <p className="text-gray-400 text-[10px] italic line-clamp-2">{reply}</p>
       </div>
     )}
 
@@ -1001,23 +1133,25 @@ const TestimonialCard = React.memo(({ name, comment, rating, reply }: { name: st
       <div className="w-10 h-10 bg-brand-red/20 rounded-full flex items-center justify-center font-bold text-brand-red">
         {name[0]}
       </div>
-      <span className="font-bold text-sm">{name}</span>
+      <span className="font-bold text-sm whitespace-normal">{name}</span>
     </div>
   </motion.div>
 ));
 
 const STATIC_TESTIMONIALS = [
-  { name: "أحمد", comment: "خدمة ممتازة جداً، استلموا السيارة من البيت ورجعوها في نفس اليوم نظيفة ومصلحة. المهندس محمد قمة في الأخلاق والأمانة.", rating: 5 },
-  { name: "فارس", comment: "عجبني إنه يغسل السيارة قبل لا يجيبها ههههههههههههههههه، صراحة خدمة فندقية مو بس صيانة! الله يبارك لكم.", rating: 5 },
-  { name: "خالد", comment: "أفضل مركز صيانة تعاملت معه في جدة. دقة في المواعيد وشغل احترافي وسعر منافس جداً مقارنة بالوكالة.", rating: 5 },
-  { name: "مرام", comment: "وفروا علي عناء الذهاب للورشة، الخدمة من الباب للباب مريحة جداً. شكراً دكتور فيكس على الاحترافية.", rating: 5 },
-  { name: "سلطان", comment: "المهندس محمد سندي فنان، صلح لي مشكلة في الكهرباء عجزت عنها الوكالة وبسعر معقول جداً.", rating: 5 },
-  { name: "خلود", comment: "أفضل شيء إنهم يجونك لين البيت، ما عاد أشيل هم الورش والزحمة. تعامل راقي جداً.", rating: 5 }
+  { id: 'st1', name: "أحمد", comment: "خدمة ممتازة جداً، استلموا السيارة من البيت ورجعوها في نفس اليوم نظيفة ومصلحة. المهندس محمد قمة في الأخلاق والأمانة.", rating: 5 },
+  { id: 'st2', name: "فارس", comment: "عجبني إنه يغسل السيارة قبل لا يجيبها ههههههههههههههههه، صراحة خدمة فندقية مو بس صيانة! الله يبارك لكم.", rating: 5 },
+  { id: 'st3', name: "خالد", comment: "أفضل مركز صيانة تعاملت معه في جدة. دقة في المواعيد وشغل احترافي وسعر منافس جداً مقارنة بالوكالة.", rating: 5 },
+  { id: 'st4', name: "مرام", comment: "وفروا علي عناء الذهاب للورشة، الخدمة من الباب للباب مريحة جداً. شكراً دكتور فيكس على الاحترافية.", rating: 5 },
+  { id: 'st5', name: "سلطان", comment: "المهندس محمد سندي فنان، صلح لي مشكلة في الكهرباء عجزت عنها الوكالة وبسعر معقول جداً.", rating: 5 },
+  { id: 'st6', name: "خلود", comment: "أفضل شيء إنهم يجونك لين البيت، ما عاد أشيل هم الورش والزحمة. تعامل راقي جداً.", rating: 5 }
 ];
 
 const Testimonials = () => {
   const [testimonials, setTestimonials] = useState<TestimonialData[]>([]);
   const [loading, setLoading] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { t, lang } = useLanguage();
 
   useEffect(() => {
     const q = query(collection(db, 'testimonials'), orderBy('createdAt', 'desc'), limit(10));
@@ -1036,6 +1170,18 @@ const Testimonials = () => {
     return () => unsubscribe();
   }, []);
 
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const { clientWidth } = scrollRef.current;
+      const scrollAmount = direction === 'left' ? -clientWidth / 2 : clientWidth / 2;
+      
+      scrollRef.current.scrollBy({
+        left: scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   const displayData = React.useMemo(() => [...testimonials, ...STATIC_TESTIMONIALS], [testimonials]);
 
   if (loading) return null;
@@ -1043,24 +1189,38 @@ const Testimonials = () => {
   return (
     <section id="testimonials" className="py-24 bg-brand-dark relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">ماذا يقول <span className="text-brand-red">عملاؤنا؟</span></h2>
-          <div className="w-20 md:w-24 h-1.5 bg-brand-red mx-auto rounded-full" />
+        <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-6">
+          <div className={cn("text-center md:text-right", lang === 'en' && "md:text-left")}>
+            <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+              {t.testimonials.title} <span className="text-brand-red">{t.testimonials.titleAccent}</span>
+            </h2>
+            <div className={cn("w-20 md:w-24 h-1.5 bg-brand-red mx-auto md:mx-0 rounded-full", lang === 'en' && "md:mr-0 md:ml-auto")} />
+          </div>
         </div>
 
-        <div className="flex overflow-x-auto pb-8 gap-6 md:gap-8 snap-x snap-mandatory no-scrollbar">
-          <div className="flex gap-6 md:gap-8">
-            {displayData.map((t, i) => (
-              <div key={t.id || i} className="min-w-[280px] md:min-w-[350px] snap-center">
+        <div className="relative overflow-hidden">
+          <motion.div 
+            animate={{ 
+              x: lang === 'ar' ? [0, 1500] : [0, -1500] 
+            }}
+            transition={{ 
+              duration: 40, 
+              repeat: Infinity, 
+              ease: "linear" 
+            }}
+            className="flex gap-6 md:gap-8 whitespace-nowrap py-4"
+          >
+            {[...displayData, ...displayData].map((review, idx) => (
+              <div key={`${review.id}-${idx}`} className="min-w-[300px] md:min-w-[380px] h-[200px] flex-shrink-0">
                 <TestimonialCard 
-                  name={t.name} 
-                  comment={t.comment} 
-                  rating={t.rating} 
-                  reply={(t as any).reply}
+                  name={review.name} 
+                  comment={review.comment} 
+                  rating={review.rating} 
+                  reply={review.reply}
                 />
               </div>
             ))}
-          </div>
+          </motion.div>
         </div>
 
         <div className="mt-16 max-w-2xl mx-auto">
@@ -1214,7 +1374,9 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [searchPhone, setSearchPhone] = useState('');
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(Notification.permission);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
 
   // Form States
   const [formData, setFormData] = useState({
@@ -1249,20 +1411,24 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
 
   const [settingsForm, setSettingsForm] = useState({
     logoUrl: settings.logoUrl || '',
-    siteName: settings.siteName || 'Dr.Fix'
+    siteName: settings.siteName || 'Dr.Fix',
+    heroImageUrl: settings.heroImageUrl || '',
+    tickerText: settings.tickerText || ''
   });
 
   useEffect(() => {
     setSettingsForm({
       logoUrl: settings.logoUrl || '',
-      siteName: settings.siteName || 'Dr.Fix'
+      siteName: settings.siteName || 'Dr.Fix',
+      heroImageUrl: settings.heroImageUrl || '',
+      tickerText: settings.tickerText || ''
     });
   }, [settings]);
 
   useEffect(() => {
     if (isAdmin) {
       // Request notification permission
-      if (Notification.permission === 'default') {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
         Notification.requestPermission().then(permission => {
           setNotificationPermission(permission);
         });
@@ -1394,17 +1560,21 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'gallery' | 'settings') => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'gallery' | 'settings' | 'hero') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const base64String = reader.result as string;
+      const compressed = await compressImage(base64String);
+      
       if (type === 'gallery') {
-        setGalleryForm({ ...galleryForm, imageUrl: base64String });
+        setGalleryForm({ ...galleryForm, imageUrl: compressed });
+      } else if (type === 'hero') {
+        setSettingsForm({ ...settingsForm, heroImageUrl: compressed });
       } else {
-        setSettingsForm({ ...settingsForm, logoUrl: base64String });
+        setSettingsForm({ ...settingsForm, logoUrl: compressed });
       }
     };
     reader.readAsDataURL(file);
@@ -1540,7 +1710,9 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
     try {
       await updateDoc(doc(db, 'stats', 'global'), {
         logoUrl: settingsForm.logoUrl,
-        siteName: settingsForm.siteName
+        siteName: settingsForm.siteName,
+        heroImageUrl: settingsForm.heroImageUrl,
+        tickerText: settingsForm.tickerText
       });
       alert('تم تحديث الإعدادات بنجاح');
     } catch (error) {
@@ -1603,17 +1775,33 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
               <ArrowRight className="w-4 h-4" />
               العودة للموقع
             </button>
-            {notificationPermission !== 'granted' && (
+            
+            {typeof Notification !== 'undefined' && (
               <button 
                 onClick={() => {
-                  Notification.requestPermission().then(setNotificationPermission);
+                  if (notificationPermission === 'default') {
+                    Notification.requestPermission().then(setNotificationPermission);
+                  } else if (notificationPermission === 'granted') {
+                    new Notification("تنبيه تجريبي 🚗", {
+                      body: "التنبيهات تعمل بنجاح في متصفحك!",
+                      icon: settings.logoUrl || "/favicon.ico"
+                    });
+                  } else {
+                    alert("التنبيهات محظورة في متصفحك. يرجى تفعيلها من إعدادات المتصفح.");
+                  }
                 }}
-                className="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-yellow-500"
-                title="تفعيل التنبيهات"
+                className={cn(
+                  "p-3 border rounded-xl transition-all",
+                  notificationPermission === 'granted' ? "bg-green-500/10 border-green-500/20 text-green-500" : 
+                  notificationPermission === 'denied' ? "bg-red-500/10 border-red-500/20 text-red-500" :
+                  "bg-white/5 border-white/10 text-yellow-500 hover:bg-white/10"
+                )}
+                title={notificationPermission === 'granted' ? "التنبيهات مفعلة (اضغط للتجربة)" : "تفعيل التنبيهات"}
               >
-                <AlertCircle className="w-5 h-5" />
+                {notificationPermission === 'granted' ? <Bell className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
               </button>
             )}
+
             <button 
               onClick={() => setIsAdding(true)}
               className="flex items-center gap-2 px-6 py-3 bg-brand-red rounded-xl font-bold italic hover:bg-red-700 transition-all shadow-lg shadow-brand-red/20"
@@ -2245,6 +2433,59 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                 </div>
 
                 <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">نص الشريط المتحرك (Ticker)</label>
+                  <textarea 
+                    value={settingsForm.tickerText}
+                    onChange={e => setSettingsForm({...settingsForm, tickerText: e.target.value})}
+                    placeholder="أدخل النص الذي يظهر في الشريط الأحمر أعلى الصفحة..."
+                    rows={3}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red resize-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase">الصورة الرئيسية (Hero Image)</label>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex gap-4">
+                      <input 
+                        type="url"
+                        value={settingsForm.heroImageUrl}
+                        onChange={e => setSettingsForm({...settingsForm, heroImageUrl: e.target.value})}
+                        placeholder="رابط الصورة الرئيسية..."
+                        className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red"
+                      />
+                      {settingsForm.heroImageUrl && (
+                        <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
+                          <img src={settingsForm.heroImageUrl} alt="Hero Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-px flex-1 bg-white/5" />
+                      <span className="text-[10px] text-gray-600 uppercase font-bold">أو ارفع صورة</span>
+                      <div className="h-px flex-1 bg-white/5" />
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, 'hero')}
+                        className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-brand-red file:bg-brand-red file:border-none file:rounded-lg file:text-white file:px-4 file:py-1 file:mr-4 file:cursor-pointer"
+                      />
+                      {settingsForm.heroImageUrl && (
+                        <button 
+                          type="button"
+                          onClick={() => setSettingsForm({...settingsForm, heroImageUrl: ''})}
+                          className="px-4 bg-brand-red/10 text-brand-red border border-brand-red/20 rounded-xl hover:bg-brand-red hover:text-white transition-all"
+                        >
+                          حذف
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase">رابط اللوجو (URL)</label>
                   <div className="flex flex-col gap-4">
                     <div className="flex gap-4">
@@ -2340,7 +2581,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
               >
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-2xl font-display font-black italic">
-                    {editingItem ? 'تعديل' : 'إضافة'} {activeTab === 'maintenance' || activeTab === 'bookings' ? 'سجل' : 
+                    {editingItem ? 'تعديل' : 'إضافة'} {activeTab === 'dashboard' || activeTab === 'bookings' ? 'حجز' : 
                           activeTab === 'content' ? (contentTab === 'services' ? 'خدمة' : contentTab === 'offers' ? 'عرض' : 'صورة') : 'جديد'}
                   </h3>
                   <button onClick={() => { setIsAdding(false); setEditingItem(null); }} className="p-2 hover:bg-white/5 rounded-full transition-colors">
@@ -2348,7 +2589,7 @@ const AdminDashboard = ({ isAdmin, onLogout, settings }: { isAdmin: boolean, onL
                   </button>
                 </div>
 
-                {(activeTab === 'maintenance' || activeTab === 'bookings') && (
+                {(activeTab === 'dashboard' || activeTab === 'bookings') && (
                   <form onSubmit={handleAddRecord} className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-500 uppercase">رقم الجوال</label>
@@ -2917,84 +3158,94 @@ const ProcessStep = React.memo(({ number, title, description }: { number: string
   </motion.div>
 ));
 
-const Process = () => (
-  <section id="process" className="py-24 bg-brand-black relative overflow-hidden">
-    <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
-      <div className="text-center mb-16">
-        <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">كيف <span className="text-brand-red">نعمل؟</span></h2>
-        <p className="text-gray-400 max-w-2xl mx-auto">نوفر عليك العناء، نحن نهتم بكل شيء من الباب إلى الباب</p>
-      </div>
+const Process = () => {
+  const { t, lang } = useLanguage();
+  return (
+    <section id="process" className="py-24 bg-brand-black relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
+        <div className={cn("text-center mb-16", lang === 'en' && "md:text-left")}>
+          <h2 className="text-3xl md:text-5xl font-display font-black mb-4 italic uppercase">
+            {t.process.title} <span className="text-brand-red">{t.process.titleAccent}</span>
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">{t.process.description}</p>
+        </div>
 
-      <div className="grid md:grid-cols-4 gap-8" style={{ perspective: '2000px' }}>
-        <ProcessStep 
-          number="01" 
-          title="احجز موعدك" 
-          description="عبر الموقع أو الاتصال، حدد المشكلة والموقع."
-        />
-        <ProcessStep 
-          number="02" 
-          title="نستلم السيارة" 
-          description="فريقنا يجي لين عندك ويستلم السيارة بكل أمان."
-        />
-        <ProcessStep 
-          number="03" 
-          title="صيانة وغسيل" 
-          description="نسوي الصيانة اللازمة ونغسل السيارة وننظفها بالكامل."
-        />
-        <ProcessStep 
-          number="04" 
-          title="نسلمها لبيتك" 
-          description="نرجع لك السيارة جاهزة ونظيفة لباب بيتك."
-        />
+        <div className="grid md:grid-cols-4 gap-8" style={{ perspective: '2000px' }}>
+          <ProcessStep 
+            number="01" 
+            title={t.process.step1Title} 
+            description={t.process.step1Desc}
+          />
+          <ProcessStep 
+            number="02" 
+            title={t.process.step2Title} 
+            description={t.process.step2Desc}
+          />
+          <ProcessStep 
+            number="03" 
+            title={t.process.step3Title} 
+            description={t.process.step3Desc}
+          />
+          <ProcessStep 
+            number="04" 
+            title={t.process.step4Title} 
+            description={t.process.step4Desc}
+          />
+        </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
-const Stats = React.memo(() => (
-  <section className="py-12 bg-brand-black border-y border-white/5">
-    <div className="max-w-7xl mx-auto px-4 md:px-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center"
-        >
-          <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">+5000</div>
-          <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">سيارة تم صيانتها</div>
-        </motion.div>
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.1 }}
-          className="text-center"
-        >
-          <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">100%</div>
-          <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">غسيل مجاني مع كل صيانة</div>
-        </motion.div>
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.2 }}
-          className="text-center"
-        >
-          <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">+10</div>
-          <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">سنوات خبرة للمهندسين</div>
-        </motion.div>
+const Stats = React.memo(() => {
+  const { t } = useLanguage();
+  return (
+    <section className="py-12 bg-brand-black border-y border-white/5">
+      <div className="max-w-7xl mx-auto px-4 md:px-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center"
+          >
+            <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">+5000</div>
+            <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">{t.stats.customers}</div>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="text-center"
+          >
+            <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">100%</div>
+            <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">{t.stats.wash}</div>
+          </motion.div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 }}
+            className="text-center"
+          >
+            <div className="text-4xl md:text-5xl font-display font-black text-brand-red mb-2">+10</div>
+            <div className="text-gray-400 font-bold uppercase tracking-wider text-sm">{t.stats.experience}</div>
+          </motion.div>
+        </div>
       </div>
-    </div>
-  </section>
-));
+    </section>
+  );
+});
 
 export default function App() {
   return (
     <Router>
-      <MainContent />
+      <LanguageProvider>
+        <MainContent />
+      </LanguageProvider>
     </Router>
   );
 }
@@ -3005,6 +3256,7 @@ function MainContent() {
   const [settings, setSettings] = useState<AppSettings>({});
   const navigate = useNavigate();
   const location = useLocation();
+  const { lang } = useLanguage();
 
   useEffect(() => {
     // Listen for settings updates
@@ -3052,14 +3304,15 @@ function MainContent() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-black text-white">
+    <div className="min-h-screen bg-brand-black text-white" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+      <Ticker settings={settings} />
       <Navbar settings={settings} />
       
-      <main className="pt-20">
+      <main className="pt-28 md:pt-32">
         <Routes>
           <Route path="/" element={
             <>
-              <Hero />
+              <Hero settings={settings} />
               <Stats />
               <Services onServiceSelect={handleServiceSelect} />
               <Offers />
@@ -3079,6 +3332,51 @@ function MainContent() {
       </main>
 
       <Footer settings={settings} />
+      
+      {/* Floating Action Buttons for Mobile */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-4">
+        <ScrollToTopButton />
+      </div>
     </div>
   );
 }
+
+const ScrollToTopButton = () => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const toggleVisibility = () => {
+      if (window.pageYOffset > 300) {
+        setIsVisible(true);
+      } else {
+        setIsVisible(false);
+      }
+    };
+
+    window.addEventListener('scroll', toggleVisibility);
+    return () => window.removeEventListener('scroll', toggleVisibility);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  };
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.5 }}
+          onClick={scrollToTop}
+          className="w-14 h-14 bg-brand-red rounded-full flex items-center justify-center shadow-2xl text-white red-glow"
+        >
+          <ArrowUp className="w-8 h-8" />
+        </motion.button>
+      )}
+    </AnimatePresence>
+  );
+};
